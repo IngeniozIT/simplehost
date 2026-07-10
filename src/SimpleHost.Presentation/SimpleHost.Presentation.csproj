@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SimpleHost.Application\SimpleHost.Application.csproj" />
+    <ProjectReference Include="..\SimpleHost.Infrastructure\SimpleHost.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

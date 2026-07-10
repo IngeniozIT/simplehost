@@ -1,0 +1,11 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Dark appearance, shown when Windows is set to use dark mode for apps. -->
+    <Color x:Key="WindowBackgroundColor">#FF202020</Color>
+    <Color x:Key="WindowForegroundColor">#FFF3F3F3</Color>
+
+    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="{StaticResource WindowBackgroundColor}" />
+    <SolidColorBrush x:Key="WindowForegroundBrush" Color="{StaticResource WindowForegroundColor}" />
+
+</ResourceDictionary>

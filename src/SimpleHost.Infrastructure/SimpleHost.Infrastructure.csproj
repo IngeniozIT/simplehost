@@ -5,6 +5,16 @@
     <ProjectReference Include="..\SimpleHost.Domain\SimpleHost.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      Windows-only, used solely by WindowsSystemThemeProvider to be notified when the user changes the
+      light/dark setting; there is no shell-out equivalent (as used for the reg/ipconfig adapters) for a
+      live OS event subscription. The reference resolves cross-platform so the layer still builds off
+      Windows; the adapter that touches it is guarded with [SupportedOSPlatform("windows")].
+    -->
+    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="9.0.0" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

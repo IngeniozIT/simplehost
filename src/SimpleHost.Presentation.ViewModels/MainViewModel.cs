@@ -1,12 +1,18 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Input;
 using SimpleHost.Application.Pending;
+using SimpleHost.Application.UseCases.ApplyPendingChanges;
+using SimpleHost.Application.UseCases.DiscardPendingChanges;
+using SimpleHost.Application.UseCases.PreviewPendingChanges;
 using SimpleHost.Application.UseCases.ViewDuplicateEntries;
 using SimpleHost.Application.UseCases.ViewGroupedEntries;
 using SimpleHost.Application.UseCases.ViewHostnameConflicts;
+using SimpleHost.Domain.Categories;
 using SimpleHost.Domain.Entries;
+using SimpleHost.Domain.Preview;
 
 namespace SimpleHost.Presentation.ViewModels;
 
@@ -22,22 +28,39 @@ public sealed class MainViewModel : ViewModelBase
     private readonly ViewGroupedEntriesUseCase _viewGroupedEntries;
     private readonly ViewHostnameConflictsUseCase _viewHostnameConflicts;
     private readonly ViewDuplicateEntriesUseCase _viewDuplicateEntries;
+    private readonly PreviewPendingChangesUseCase _previewPendingChanges;
+    private readonly ApplyPendingChangesUseCase _applyPendingChanges;
+    private readonly DiscardPendingChangesUseCase _discardPendingChanges;
     private readonly PendingChangeSet _pendingChanges;
+    private readonly RelayCommand _applyCommand;
+    private readonly RelayCommand _discardCommand;
+    private readonly RelayCommand _previewCommand;
     private bool _hasHostnameConflicts;
     private bool _hasDuplicateEntries;
     private HostEntryViewModel? _entryBeingEdited;
+    private HostsFileDiff? _previewDiff;
 
     public MainViewModel(
         ViewGroupedEntriesUseCase viewGroupedEntries,
         ViewHostnameConflictsUseCase viewHostnameConflicts,
         ViewDuplicateEntriesUseCase viewDuplicateEntries,
+        PreviewPendingChangesUseCase previewPendingChanges,
+        ApplyPendingChangesUseCase applyPendingChanges,
+        DiscardPendingChangesUseCase discardPendingChanges,
         PendingChangeSet pendingChanges)
     {
         _viewGroupedEntries = viewGroupedEntries;
         _viewHostnameConflicts = viewHostnameConflicts;
         _viewDuplicateEntries = viewDuplicateEntries;
+        _previewPendingChanges = previewPendingChanges;
+        _applyPendingChanges = applyPendingChanges;
+        _discardPendingChanges = discardPendingChanges;
         _pendingChanges = pendingChanges;
         RefreshCommand = new RelayCommand(Refresh);
+        _applyCommand = new RelayCommand(ApplyPendingChanges, () => HasPendingChanges);
+        _discardCommand = new RelayCommand(DiscardPendingChanges, () => HasPendingChanges);
+        _previewCommand = new RelayCommand(Preview, () => HasPendingChanges);
+        _pendingChanges.Changed += OnPendingChangesChanged;
     }
 
     /// <summary>
@@ -85,6 +108,50 @@ public sealed class MainViewModel : ViewModelBase
     /// <summary>Command that re-reads the file and refreshes the displayed state.</summary>
     public ICommand RefreshCommand { get; }
 
+    /// <summary>
+    /// Command that writes every pending change to the resolved <c>hosts</c> file. Enabled only while
+    /// there are pending changes to write. See <see cref="ApplyPendingChanges"/>.
+    /// </summary>
+    public ICommand ApplyCommand => _applyCommand;
+
+    /// <summary>
+    /// Command that forgets every pending change and returns the view to the on-disk file. Enabled
+    /// only while there are pending changes to discard. See <see cref="DiscardPendingChanges"/>.
+    /// </summary>
+    public ICommand DiscardCommand => _discardCommand;
+
+    /// <summary>
+    /// Command that computes the preview diff into <see cref="PreviewDiff"/>. Enabled only while there
+    /// are pending changes to preview.
+    /// </summary>
+    public ICommand PreviewCommand => _previewCommand;
+
+    /// <summary>
+    /// The callback the view supplies to be told that a save was refused because the process lacks the
+    /// administrator rights required to write the protected system <c>hosts</c> file. When
+    /// <see cref="ApplyPendingChanges"/> hits that gate it leaves every change pending, writes nothing,
+    /// and invokes this so the view can request elevation and let the user retry. When left unset the
+    /// refusal is simply left pending, with nothing written.
+    /// </summary>
+    public Action? ElevationRequired { get; set; }
+
+    /// <summary>The number of changes the user has staged but not yet written to the file.</summary>
+    public int PendingChangeCount => _pendingChanges.Changes.Count;
+
+    /// <summary>Whether any change is currently staged and waiting to be applied or discarded.</summary>
+    public bool HasPendingChanges => _pendingChanges.HasChanges;
+
+    /// <summary>
+    /// The most recently computed preview of what the <c>hosts</c> file will look like once the
+    /// pending changes are applied, or <see langword="null"/> before <see cref="PreviewCommand"/> has
+    /// run or once the changes have been applied or discarded. Set by <see cref="PreviewCommand"/>.
+    /// </summary>
+    public HostsFileDiff? PreviewDiff
+    {
+        get => _previewDiff;
+        private set => SetProperty(ref _previewDiff, value);
+    }
+
     /// <summary>Whether any hostname currently resolves to conflicting IP addresses.</summary>
     public bool HasHostnameConflicts
     {
@@ -108,12 +175,66 @@ public sealed class MainViewModel : ViewModelBase
     /// </summary>
     public void Refresh()
     {
+        RebuildGroups(_viewGroupedEntries.Execute());
+        RefreshWarnings();
+    }
+
+    /// <summary>
+    /// Writes every pending change to the resolved <c>hosts</c> file through the apply use case — which
+    /// creates the automatic backup and, when the file is the protected system file, enforces the
+    /// elevation gate — then refreshes the grouped view and warnings to match the saved file, leaving
+    /// nothing pending. When the save is refused for lack of administrator rights nothing is written,
+    /// every change stays pending, the view is left unchanged, and <see cref="ElevationRequired"/> is
+    /// invoked so the view can request elevation and let the user retry.
+    /// </summary>
+    public void ApplyPendingChanges()
+    {
+        try
+        {
+            _applyPendingChanges.Execute(_pendingChanges, flushDnsAfterSave: false);
+        }
+        catch (ElevationRequiredException)
+        {
+            ElevationRequired?.Invoke();
+            return;
+        }
+
+        Refresh();
+        PreviewDiff = null;
+    }
+
+    /// <summary>
+    /// Forgets every pending change through the discard use case, writing nothing, and refreshes the
+    /// grouped view to match the on-disk file exactly as it stands, leaving nothing pending.
+    /// </summary>
+    public void DiscardPendingChanges()
+    {
+        RebuildGroups(_discardPendingChanges.Execute(_pendingChanges));
+        PreviewDiff = null;
+    }
+
+    private void Preview() => PreviewDiff = _previewPendingChanges.Execute(_pendingChanges);
+
+    private void OnPendingChangesChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(PendingChangeCount));
+        OnPropertyChanged(nameof(HasPendingChanges));
+        _applyCommand.RaiseCanExecuteChanged();
+        _discardCommand.RaiseCanExecuteChanged();
+        _previewCommand.RaiseCanExecuteChanged();
+    }
+
+    private void RebuildGroups(IReadOnlyList<CategoryGroup> groups)
+    {
         Groups.Clear();
-        foreach (var group in _viewGroupedEntries.Execute())
+        foreach (var group in groups)
         {
             Groups.Add(new CategoryGroupViewModel(group));
         }
+    }
 
+    private void RefreshWarnings()
+    {
         var conflicts = _viewHostnameConflicts.Execute();
         HostnameConflictWarnings.Clear();
         foreach (var conflict in conflicts.Conflicts)

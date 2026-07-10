@@ -32,6 +32,31 @@ public class PendingChangeSetTests
     }
 
     [Fact]
+    public void Raises_changed_when_a_change_is_recorded()
+    {
+        var changes = new PendingChangeSet();
+        var raised = 0;
+        changes.Changed += (_, _) => raised++;
+
+        changes.AddEntry(new HostEntry("127.0.0.1", "web.test"));
+
+        raised.ShouldBe(1);
+    }
+
+    [Fact]
+    public void Raises_changed_when_cleared()
+    {
+        var changes = new PendingChangeSet();
+        changes.AddEntry(new HostEntry("127.0.0.1", "web.test"));
+        var raised = 0;
+        changes.Changed += (_, _) => raised++;
+
+        changes.Clear();
+
+        raised.ShouldBe(1);
+    }
+
+    [Fact]
     public void Applying_an_empty_set_returns_the_current_grouping_unchanged()
     {
         var current = Grouping(

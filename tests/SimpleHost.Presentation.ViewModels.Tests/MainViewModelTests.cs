@@ -4,6 +4,9 @@ using System.Linq;
 using Shouldly;
 using SimpleHost.Application.Pending;
 using SimpleHost.Application.Ports;
+using SimpleHost.Application.UseCases.ApplyPendingChanges;
+using SimpleHost.Application.UseCases.DiscardPendingChanges;
+using SimpleHost.Application.UseCases.PreviewPendingChanges;
 using SimpleHost.Application.UseCases.ViewDuplicateEntries;
 using SimpleHost.Application.UseCases.ViewGroupedEntries;
 using SimpleHost.Application.UseCases.ViewHostnameConflicts;
@@ -1218,7 +1221,23 @@ public class MainViewModelTests
             new ViewGroupedEntriesUseCase(repository),
             new ViewHostnameConflictsUseCase(repository),
             new ViewDuplicateEntriesUseCase(repository),
+            new PreviewPendingChangesUseCase(repository),
+            new ApplyPendingChangesUseCase(
+                repository, new FakeElevationService(isElevated: true), new NoOpDnsCacheFlusher()),
+            new DiscardPendingChangesUseCase(repository),
             pendingChanges ?? new PendingChangeSet());
+
+    private sealed class FakeElevationService(bool isElevated) : IElevationService
+    {
+        public bool IsElevated { get; } = isElevated;
+    }
+
+    private sealed class NoOpDnsCacheFlusher : IDnsCacheFlusher
+    {
+        public void Flush()
+        {
+        }
+    }
 
     private sealed class FakeHostsFileRepository : IHostsFileRepository
     {

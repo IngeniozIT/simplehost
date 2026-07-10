@@ -13,6 +13,13 @@ public sealed class PendingChangeSet
 {
     private readonly List<PendingChange> _changes = new();
 
+    /// <summary>
+    /// Raised whenever the set of pending changes changes — a change is recorded or the set is
+    /// cleared — so a view-model can keep a live count (and derived state such as whether an apply
+    /// or discard is possible) in sync without polling.
+    /// </summary>
+    public event EventHandler? Changed;
+
     /// <summary>The accumulated changes, in the order they were made.</summary>
     public IReadOnlyList<PendingChange> Changes => _changes;
 
@@ -21,7 +28,7 @@ public sealed class PendingChangeSet
 
     /// <summary>Records adding <paramref name="entry"/> under <paramref name="category"/> (or "No category").</summary>
     public void AddEntry(HostEntry entry, string? category = null)
-        => _changes.Add(new AddEntryChange(entry, category));
+        => Record(new AddEntryChange(entry, category));
 
     /// <summary>
     /// Records creating a new, empty category named <paramref name="name"/> (trimmed of surrounding
@@ -33,7 +40,7 @@ public sealed class PendingChangeSet
     public void CreateCategory(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        _changes.Add(new CreateCategoryChange(name.Trim()));
+        Record(new CreateCategoryChange(name.Trim()));
     }
 
     /// <summary>
@@ -49,7 +56,7 @@ public sealed class PendingChangeSet
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(currentName);
         ArgumentException.ThrowIfNullOrWhiteSpace(newName);
-        _changes.Add(new RenameCategoryChange(currentName, newName.Trim()));
+        Record(new RenameCategoryChange(currentName, newName.Trim()));
     }
 
     /// <summary>
@@ -62,34 +69,44 @@ public sealed class PendingChangeSet
     public void DeleteCategory(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        _changes.Add(new DeleteCategoryChange(name));
+        Record(new DeleteCategoryChange(name));
     }
 
     /// <summary>Records replacing <paramref name="target"/> in place with <paramref name="replacement"/>.</summary>
     public void UpdateEntry(HostEntry target, HostEntry replacement)
-        => _changes.Add(new UpdateEntryChange(target, replacement));
+        => Record(new UpdateEntryChange(target, replacement));
 
     /// <summary>Records deleting <paramref name="entry"/>.</summary>
     public void DeleteEntry(HostEntry entry)
-        => _changes.Add(new DeleteEntryChange(entry));
+        => Record(new DeleteEntryChange(entry));
 
     /// <summary>Records moving <paramref name="entry"/> into <paramref name="targetCategory"/> (or "No category").</summary>
     public void MoveEntry(HostEntry entry, string? targetCategory)
-        => _changes.Add(new MoveEntryChange(entry, targetCategory));
+        => Record(new MoveEntryChange(entry, targetCategory));
 
     /// <summary>
     /// Records reordering <paramref name="entry"/> to the zero-based position
     /// <paramref name="targetIndex"/> among the entries of the category it already belongs to.
     /// </summary>
     public void ReorderEntry(HostEntry entry, int targetIndex)
-        => _changes.Add(new ReorderEntryChange(entry, targetIndex));
+        => Record(new ReorderEntryChange(entry, targetIndex));
 
     /// <summary>
     /// Discards every accumulated change, leaving the set empty and <see cref="HasChanges"/>
     /// <see langword="false"/> again. Used once the changes have been written to the file so they
     /// are no longer pending.
     /// </summary>
-    public void Clear() => _changes.Clear();
+    public void Clear()
+    {
+        _changes.Clear();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void Record(PendingChange change)
+    {
+        _changes.Add(change);
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>
     /// Projects the accumulated changes onto <paramref name="current"/> and returns the resulting

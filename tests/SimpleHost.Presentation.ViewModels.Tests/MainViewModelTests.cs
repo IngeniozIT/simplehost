@@ -8,15 +8,19 @@ using SimpleHost.Application.UseCases.ApplyPendingChanges;
 using SimpleHost.Application.UseCases.DiscardPendingChanges;
 using SimpleHost.Application.UseCases.FilterEntriesByCategory;
 using SimpleHost.Application.UseCases.PreviewPendingChanges;
+using SimpleHost.Application.UseCases.RefreshSubscription;
+using SimpleHost.Application.UseCases.RefreshSubscriptions;
 using SimpleHost.Application.UseCases.SaveProfile;
 using SimpleHost.Application.UseCases.SearchEntriesByHostname;
 using SimpleHost.Application.UseCases.SearchEntriesByIpAddress;
+using SimpleHost.Application.UseCases.SubscribeToRemoteHostsList;
 using SimpleHost.Application.UseCases.ViewDuplicateEntries;
 using SimpleHost.Application.UseCases.ViewGroupedEntries;
 using SimpleHost.Application.UseCases.ViewHostnameConflicts;
 using SimpleHost.Domain.Categories;
 using SimpleHost.Domain.Entries;
 using SimpleHost.Domain.Profiles;
+using SimpleHost.Domain.Subscriptions;
 using SimpleHost.Presentation.ViewModels;
 
 namespace SimpleHost.Presentation.ViewModels.Tests;
@@ -1799,7 +1803,21 @@ public class MainViewModelTests
             new SearchEntriesByIpAddressUseCase(repository),
             new FilterEntriesByCategoryUseCase(repository),
             new SaveProfileUseCase(profileStore ?? new FakeProfileStore()),
+            new SubscribeToRemoteHostsListUseCase(new StubRemoteHostsListFetcher(), repository),
+            new RefreshSubscriptionUseCase(new StubRemoteHostsListFetcher(), repository),
+            new RefreshSubscriptionsUseCase(
+                new StubSubscriptionCatalog(), new StubRemoteHostsListFetcher(), repository),
             pendingChanges ?? new PendingChangeSet());
+
+    private sealed class StubRemoteHostsListFetcher : IRemoteHostsListFetcher
+    {
+        public IReadOnlyList<HostEntry> Fetch(string url) => throw new NotSupportedException();
+    }
+
+    private sealed class StubSubscriptionCatalog : ISubscriptionCatalog
+    {
+        public IReadOnlyList<Subscription> GetSubscriptions() => Array.Empty<Subscription>();
+    }
 
     private sealed class FakeProfileStore : IProfileStore
     {

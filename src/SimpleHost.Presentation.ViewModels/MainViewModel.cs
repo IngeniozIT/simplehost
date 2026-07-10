@@ -8,9 +8,12 @@ using SimpleHost.Application.UseCases.ApplyPendingChanges;
 using SimpleHost.Application.UseCases.DiscardPendingChanges;
 using SimpleHost.Application.UseCases.FilterEntriesByCategory;
 using SimpleHost.Application.UseCases.PreviewPendingChanges;
+using SimpleHost.Application.UseCases.RefreshSubscription;
+using SimpleHost.Application.UseCases.RefreshSubscriptions;
 using SimpleHost.Application.UseCases.SaveProfile;
 using SimpleHost.Application.UseCases.SearchEntriesByHostname;
 using SimpleHost.Application.UseCases.SearchEntriesByIpAddress;
+using SimpleHost.Application.UseCases.SubscribeToRemoteHostsList;
 using SimpleHost.Application.UseCases.ViewDuplicateEntries;
 using SimpleHost.Application.UseCases.ViewGroupedEntries;
 using SimpleHost.Application.UseCases.ViewHostnameConflicts;
@@ -40,6 +43,9 @@ public sealed class MainViewModel : ViewModelBase
     private readonly SearchEntriesByIpAddressUseCase _searchByIpAddress;
     private readonly FilterEntriesByCategoryUseCase _filterByCategory;
     private readonly SaveProfileUseCase _saveProfile;
+    private readonly SubscribeToRemoteHostsListUseCase _subscribeToRemoteList;
+    private readonly RefreshSubscriptionUseCase _refreshSubscription;
+    private readonly RefreshSubscriptionsUseCase _refreshSubscriptions;
     private readonly PendingChangeSet _pendingChanges;
     private readonly RelayCommand _applyCommand;
     private readonly RelayCommand _discardCommand;
@@ -64,6 +70,9 @@ public sealed class MainViewModel : ViewModelBase
         SearchEntriesByIpAddressUseCase searchByIpAddress,
         FilterEntriesByCategoryUseCase filterByCategory,
         SaveProfileUseCase saveProfile,
+        SubscribeToRemoteHostsListUseCase subscribeToRemoteList,
+        RefreshSubscriptionUseCase refreshSubscription,
+        RefreshSubscriptionsUseCase refreshSubscriptions,
         PendingChangeSet pendingChanges)
     {
         _viewGroupedEntries = viewGroupedEntries;
@@ -76,6 +85,9 @@ public sealed class MainViewModel : ViewModelBase
         _searchByIpAddress = searchByIpAddress;
         _filterByCategory = filterByCategory;
         _saveProfile = saveProfile;
+        _subscribeToRemoteList = subscribeToRemoteList;
+        _refreshSubscription = refreshSubscription;
+        _refreshSubscriptions = refreshSubscriptions;
         _pendingChanges = pendingChanges;
         RefreshCommand = new RelayCommand(Refresh);
         _applyCommand = new RelayCommand(ApplyPendingChanges, () => HasPendingChanges);
@@ -197,6 +209,14 @@ public sealed class MainViewModel : ViewModelBase
     /// </summary>
     public ObservableCollection<Profile> Profiles { get; } = new();
 
+    /// <summary>
+    /// The outcome of the most recent automatic refresh of every subscription, one result per
+    /// subscription in catalog order, so the view can reflect which subscriptions were brought up to
+    /// date and which could not be. Replaced wholesale on each <see cref="RefreshAllSubscriptions"/>;
+    /// empty until the first auto-refresh runs, and left empty when nothing is subscribed.
+    /// </summary>
+    public ObservableCollection<SubscriptionRefreshResult> SubscriptionRefreshResults { get; } = new();
+
     /// <summary>The human-readable hostname-conflict warnings for the current file.</summary>
     public ObservableCollection<string> HostnameConflictWarnings { get; } = new();
 
@@ -232,6 +252,19 @@ public sealed class MainViewModel : ViewModelBase
     /// refusal is simply left pending, with nothing written.
     /// </summary>
     public Action? ElevationRequired { get; set; }
+
+    /// <summary>
+    /// The callback the view supplies to be told, with a human-readable message, that an on-demand
+    /// subscription operation — <see cref="SubscribeToRemoteList"/> or
+    /// <see cref="RefreshSubscription"/> — was refused: a blank URL or category, a category name that
+    /// already exists (when subscribing) or does not exist (when refreshing), or a remote list that
+    /// could not be fetched. In every such case the use case changes nothing (it validates and fetches
+    /// before it writes), the displayed state is left as it was, and this is invoked so the view can
+    /// report the problem. When left unset the refusal is simply swallowed, with nothing changed. The
+    /// unattended, batch <see cref="RefreshAllSubscriptions"/> never routes through this — it captures
+    /// each subscription's failure into <see cref="SubscriptionRefreshResults"/> instead.
+    /// </summary>
+    public Action<string>? SubscriptionOperationFailed { get; set; }
 
     /// <summary>The number of changes the user has staged but not yet written to the file.</summary>
     public int PendingChangeCount => _pendingChanges.Changes.Count;
@@ -738,6 +771,67 @@ public sealed class MainViewModel : ViewModelBase
 
             StageCategoryStatusChange(group.Name, status);
         }
+    }
+
+    /// <summary>
+    /// Subscribes to the remote <c>hosts</c> list at <paramref name="url"/>, placing its entries into
+    /// a new dedicated category named <paramref name="category"/> through the subscribe use case, then
+    /// re-reads the file so the new category and its entries appear in the grouped view. Because the
+    /// use case validates and fetches before it writes, a blank URL or category, a category that
+    /// already exists, or a list that cannot be fetched changes nothing on disk; the displayed state is
+    /// left untouched and <see cref="SubscriptionOperationFailed"/> is invoked with the reason so the
+    /// view can report it.
+    /// </summary>
+    public void SubscribeToRemoteList(string url, string category)
+        => RunSubscriptionOperation(() => _subscribeToRemoteList.Execute(url, category));
+
+    /// <summary>
+    /// Refreshes the subscription held in the category named <paramref name="category"/> on demand by
+    /// re-fetching the remote <c>hosts</c> list at <paramref name="url"/> through the refresh use case,
+    /// replacing that category's entries with the freshly fetched ones, then re-reads the file so the
+    /// updated category appears in the grouped view. Because the use case validates and fetches before
+    /// it writes, a blank URL or category, a category that does not exist, or a list that cannot be
+    /// fetched changes nothing; the displayed state is left untouched and
+    /// <see cref="SubscriptionOperationFailed"/> is invoked with the reason so the view can report it.
+    /// </summary>
+    public void RefreshSubscription(string url, string category)
+        => RunSubscriptionOperation(() => _refreshSubscription.Execute(url, category));
+
+    /// <summary>
+    /// Refreshes every kept subscription in one unattended pass through the refresh-all use case —
+    /// rewriting each subscription's dedicated category with the entries freshly fetched from its
+    /// remote list — records the per-subscription outcome (refreshed or failed, in catalog order) into
+    /// <see cref="SubscriptionRefreshResults"/>, replacing any previous results, then re-reads the file
+    /// so the refreshed categories appear in the grouped view. This is the action the app's scheduler
+    /// runs on each tick; one subscription's failure is captured as its own result and never stops the
+    /// others, so this never surfaces through <see cref="SubscriptionOperationFailed"/>.
+    /// </summary>
+    public void RefreshAllSubscriptions()
+    {
+        var results = _refreshSubscriptions.Execute();
+
+        SubscriptionRefreshResults.Clear();
+        foreach (var result in results)
+        {
+            SubscriptionRefreshResults.Add(result);
+        }
+
+        Refresh();
+    }
+
+    private void RunSubscriptionOperation(Action operation)
+    {
+        try
+        {
+            operation();
+        }
+        catch (Exception exception)
+        {
+            SubscriptionOperationFailed?.Invoke(exception.Message);
+            return;
+        }
+
+        Refresh();
     }
 
     private IReadOnlyList<string?> CurrentlyEnabledCategories()

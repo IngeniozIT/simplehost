@@ -13,9 +13,10 @@ namespace SimpleHost.Presentation;
 /// action or by dragging a row onto a category), and reordered within a category by dragging. Whole
 /// categories can be created, renamed, deleted and enabled or disabled, and a multi-selection of
 /// entries can be enabled, disabled, deleted or moved at once. The current set of enabled categories
-/// can be saved as a named profile and a saved profile switched back to. Every action drives the
-/// <see cref="MainViewModel"/>'s commands; nothing is written to the file until the pending changes
-/// are applied.
+/// can be saved as a named profile and a saved profile switched back to. Remote subscriptions can be
+/// added and refreshed, and external hosts files imported into a category or exported (a single
+/// category or the whole configuration). Every action drives the <see cref="MainViewModel"/>'s
+/// commands; nothing is written to the file until the pending changes are applied.
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -36,6 +37,11 @@ public partial class MainWindow : Window
         // until the view confirms it. Supply the confirmation as a modal Yes/No prompt naming the
         // entry; declining (or dismissing) leaves the entry in place.
         _viewModel.DeleteConfirmation = ConfirmDelete;
+
+        // A refused subscription, import or export changes nothing and reports its reason through these
+        // callbacks; surface each as a modal warning so the user learns why nothing happened.
+        _viewModel.SubscriptionOperationFailed = ReportOperationFailure;
+        _viewModel.ImportExportFailed = ReportOperationFailure;
     }
 
     // --- Search and category filter ----------------------------------------------------------
@@ -303,6 +309,62 @@ public partial class MainWindow : Window
             _viewModel.ActivateProfile(name);
         }
     }
+
+    // --- Remote subscriptions: subscribe, refresh one, refresh all ---------------------------
+
+    private void OnSubscribeClick(object sender, RoutedEventArgs e)
+        => _viewModel.SubscribeToRemoteList(SubscriptionUrlBox.Text.Trim(), SubscriptionCategoryBox.Text.Trim());
+
+    private void OnRefreshSubscriptionClick(object sender, RoutedEventArgs e)
+        => _viewModel.RefreshSubscription(SubscriptionUrlBox.Text.Trim(), SubscriptionCategoryBox.Text.Trim());
+
+    private void OnRefreshAllSubscriptionsClick(object sender, RoutedEventArgs e)
+        => _viewModel.RefreshAllSubscriptions();
+
+    // --- Import and export external hosts files ----------------------------------------------
+
+    private void OnImportClick(object sender, RoutedEventArgs e)
+    {
+        // Import needs a target category picked (its Name is null for the "No category" group).
+        if (TransferCategoryBox.SelectedItem is not CategoryGroupViewModel group)
+        {
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Import hosts file" };
+        if (dialog.ShowDialog(this) == true)
+        {
+            _viewModel.ImportEntries(dialog.FileName, group.Name);
+        }
+    }
+
+    private void OnExportCategoryClick(object sender, RoutedEventArgs e)
+    {
+        // Export-category needs the source category picked (null Name is the "No category" group).
+        if (TransferCategoryBox.SelectedItem is not CategoryGroupViewModel group)
+        {
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.SaveFileDialog { Title = "Export category", FileName = "hosts" };
+        if (dialog.ShowDialog(this) == true)
+        {
+            _viewModel.ExportCategory(group.Name, dialog.FileName);
+        }
+    }
+
+    private void OnExportConfigurationClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog { Title = "Export configuration", FileName = "hosts" };
+        if (dialog.ShowDialog(this) == true)
+        {
+            _viewModel.ExportConfiguration(dialog.FileName);
+        }
+    }
+
+    private void ReportOperationFailure(string message)
+        => System.Windows.MessageBox.Show(
+            this, message, "SimpleHost", MessageBoxButton.OK, MessageBoxImage.Warning);
 
     // --- Drag and drop: move between categories, reorder within one --------------------------
 

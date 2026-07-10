@@ -176,6 +176,45 @@
                     Click="OnSaveProfileClick" />
         </StackPanel>
 
+        <!-- Remote subscriptions: subscribe a URL into a dedicated category, refresh that one on demand,
+             or refresh every kept subscription at once. Each drives the view-model, which validates and
+             fetches before it writes; a blank URL or category, a category that already exists (when
+             subscribing) or is missing (when refreshing), or a list that cannot be fetched changes
+             nothing and is reported through the failure callback wired in the constructor. -->
+        <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0" Orientation="Horizontal">
+            <TextBlock Text="Subscription URL:" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBox x:Name="SubscriptionUrlBox"
+                     Width="200"
+                     VerticalAlignment="Center"
+                     ToolTip="The remote hosts list to subscribe to or refresh" />
+            <TextBlock Text="Category:" VerticalAlignment="Center" Margin="12,0,6,0" />
+            <TextBox x:Name="SubscriptionCategoryBox"
+                     Width="120"
+                     VerticalAlignment="Center"
+                     ToolTip="The category the subscription's entries live in" />
+            <Button Content="Subscribe" Margin="8,0,0,0" Padding="8,2" Click="OnSubscribeClick" />
+            <Button Content="Refresh" Margin="6,0,0,0" Padding="8,2" Click="OnRefreshSubscriptionClick" />
+            <Button Content="Refresh all" Margin="6,0,0,0" Padding="8,2" Click="OnRefreshAllSubscriptionsClick" />
+        </StackPanel>
+
+        <!-- Import and export external hosts files. The category combo picks the target of an import and
+             the source of a single-category export ("No category" for the pinned group); file paths are
+             chosen through the standard open/save dialogs. Import and export-category need a category
+             selected; export-all needs none. The view-model validates before it reads or writes and
+             reports any refusal through the failure callback wired in the constructor. -->
+        <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0" Orientation="Horizontal">
+            <TextBlock Text="Transfer category:" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <ComboBox x:Name="TransferCategoryBox"
+                      Width="160"
+                      VerticalAlignment="Center"
+                      ItemsSource="{Binding Groups}"
+                      DisplayMemberPath="DisplayName"
+                      ToolTip="The category to import into or to export" />
+            <Button Content="Import into…" Margin="8,0,0,0" Padding="8,2" Click="OnImportClick" />
+            <Button Content="Export category…" Margin="6,0,0,0" Padding="8,2" Click="OnExportCategoryClick" />
+            <Button Content="Export all…" Margin="6,0,0,0" Padding="8,2" Click="OnExportConfigurationClick" />
+        </StackPanel>
+
         <!-- Add a new entry: the shared entry form bound to the view-model's new-entry draft, with
              its inline IP/hostname validation, and an Add button enabled only while the draft is valid. -->
         <Border DockPanel.Dock="Bottom"

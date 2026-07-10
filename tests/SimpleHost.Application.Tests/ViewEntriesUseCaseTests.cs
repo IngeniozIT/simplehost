@@ -47,6 +47,8 @@ public class ViewEntriesUseCaseTests
 
     private sealed class FakeHostsFileRepository(params HostEntry[] entries) : IHostsFileRepository
     {
+        public void AddEntry(HostEntry entry) => throw new NotSupportedException();
+
         public IReadOnlyList<HostEntry> GetActiveEntries()
             => entries.Where(entry => entry.Status == HostEntryStatus.Active).ToList();
 

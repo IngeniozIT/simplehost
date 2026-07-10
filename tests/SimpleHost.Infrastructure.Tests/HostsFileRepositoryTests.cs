@@ -17,7 +17,7 @@ public sealed class HostsFileRepositoryTests : IDisposable
             "# 127.0.0.1 staging.myapp.test\n" +
             "0.0.0.0 ads.example.com # blocked\n");
 
-        var repository = new HostsFileRepository(_path, new HostsFileParser());
+        var repository = new HostsFileRepository(_path, new HostsFileParser(), new HostsFileSerializer());
 
         repository.GetActiveEntries().ShouldBe(new[]
         {
@@ -35,7 +35,7 @@ public sealed class HostsFileRepositoryTests : IDisposable
             "# 127.0.0.1 staging.myapp.test\n" +
             "0.0.0.0 ads.example.com # blocked\n");
 
-        var repository = new HostsFileRepository(_path, new HostsFileParser());
+        var repository = new HostsFileRepository(_path, new HostsFileParser(), new HostsFileSerializer());
 
         repository.GetEntries().ShouldBe(new[]
         {
@@ -54,7 +54,7 @@ public sealed class HostsFileRepositoryTests : IDisposable
             "127.0.0.1 api.myapp.test\n" +
             "# 127.0.0.1 staging.myapp.test\n");
 
-        var repository = new HostsFileRepository(_path, new HostsFileParser());
+        var repository = new HostsFileRepository(_path, new HostsFileParser(), new HostsFileSerializer());
 
         var groups = repository.GetGroupedEntries();
 

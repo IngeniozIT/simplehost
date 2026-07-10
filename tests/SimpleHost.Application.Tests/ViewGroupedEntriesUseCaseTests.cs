@@ -34,6 +34,8 @@ public class ViewGroupedEntriesUseCaseTests
 
     private sealed class FakeHostsFileRepository(params CategoryGroup[] groups) : IHostsFileRepository
     {
+        public void AddEntry(HostEntry entry) => throw new NotSupportedException();
+
         public IReadOnlyList<HostEntry> GetActiveEntries() => throw new NotSupportedException();
 
         public IReadOnlyList<HostEntry> GetEntries() => throw new NotSupportedException();

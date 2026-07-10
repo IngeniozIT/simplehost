@@ -10,6 +10,13 @@ namespace SimpleHost.Application.Ports;
 public interface IHostsFileRepository
 {
     /// <summary>
+    /// Adds a new entry to the <c>hosts</c> file, appending it as a new line so it becomes
+    /// part of the stored entries and is returned by subsequent reads.
+    /// </summary>
+    /// <param name="entry">The entry to add.</param>
+    void AddEntry(HostEntry entry);
+
+    /// <summary>
     /// Returns every active (uncommented) entry currently in the <c>hosts</c> file,
     /// in the order they appear.
     /// </summary>

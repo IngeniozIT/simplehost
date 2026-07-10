@@ -1,0 +1,96 @@
+<UserControl x:Class="SimpleHost.Presentation.EntryFormControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Foreground="{DynamicResource WindowForegroundBrush}">
+
+    <!--
+        The editable draft of a host entry, bound to an EntryFormViewModel supplied as the
+        DataContext. Used both for adding a new entry (bound to MainViewModel.NewEntry) and for
+        editing an existing one (bound to MainViewModel.EditDraft), so the same fields and the same
+        inline IP/hostname validation feedback appear in both places. The IP and hostname boxes push
+        every keystroke to the draft (UpdateSourceTrigger=PropertyChanged) so the validation
+        re-runs live; each validation message is empty while the field is well-formed and otherwise
+        carries the prompt or the reason, shown in a warning colour, and the box border turns red.
+    -->
+    <UserControl.Resources>
+        <Style x:Key="ValidationMessageStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#E5534B" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <!-- Reddens the IP-address box while its content is not a valid address. -->
+        <Style x:Key="IpAddressBoxStyle" TargetType="TextBox">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IpAddressValidation.IsWellFormed}" Value="False">
+                    <Setter Property="BorderBrush" Value="#E5534B" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Reddens the hostname box while its content is not a valid hostname. -->
+        <Style x:Key="HostnameBoxStyle" TargetType="TextBox">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HostnameValidation.IsWellFormed}" Value="False">
+                    <Setter Property="BorderBrush" Value="#E5534B" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- IP address -->
+        <TextBlock Grid.Row="0" Grid.Column="0"
+                   Text="IP address"
+                   VerticalAlignment="Center"
+                   Margin="0,0,10,0" />
+        <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,6">
+            <TextBox Text="{Binding IpAddress, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource IpAddressBoxStyle}" />
+            <TextBlock Text="{Binding IpAddressValidation.Message}"
+                       Style="{StaticResource ValidationMessageStyle}" />
+        </StackPanel>
+
+        <!-- Hostname -->
+        <TextBlock Grid.Row="1" Grid.Column="0"
+                   Text="Hostname"
+                   VerticalAlignment="Center"
+                   Margin="0,0,10,0" />
+        <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,6">
+            <TextBox Text="{Binding Hostname, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource HostnameBoxStyle}" />
+            <TextBlock Text="{Binding HostnameValidation.Message}"
+                       Style="{StaticResource ValidationMessageStyle}" />
+        </StackPanel>
+
+        <!-- Comment -->
+        <TextBlock Grid.Row="2" Grid.Column="0"
+                   Text="Comment"
+                   VerticalAlignment="Center"
+                   Margin="0,0,10,0" />
+        <TextBox Grid.Row="2" Grid.Column="1"
+                 Margin="0,0,0,6"
+                 Text="{Binding Comment, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}" />
+
+        <!-- Category -->
+        <TextBlock Grid.Row="3" Grid.Column="0"
+                   Text="Category"
+                   VerticalAlignment="Center"
+                   Margin="0,0,10,0" />
+        <TextBox Grid.Row="3" Grid.Column="1"
+                 Text="{Binding Category, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}" />
+    </Grid>
+</UserControl>

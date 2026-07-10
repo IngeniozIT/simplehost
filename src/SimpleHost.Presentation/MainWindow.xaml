@@ -20,6 +20,36 @@
 
     <DockPanel>
 
+        <!-- Pending-changes toolbar: shown only while changes are staged. It reports how many changes
+             are waiting and drives the view-model to preview the diff, apply them to the hosts file, or
+             discard them. Apply and Discard bind straight to the view-model's commands, which stay
+             enabled only while there are pending changes. -->
+        <Border DockPanel.Dock="Top"
+                Visibility="{Binding HasPendingChanges, Converter={StaticResource BoolToVisibility}}"
+                BorderBrush="{DynamicResource WindowForegroundBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="12,8">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="Preview"
+                            Padding="10,3"
+                            IsEnabled="{Binding HasPendingChanges}"
+                            Click="OnPreviewPendingChangesClick" />
+                    <Button Content="Apply"
+                            Margin="8,0,0,0"
+                            Padding="10,3"
+                            Command="{Binding ApplyCommand}" />
+                    <Button Content="Discard"
+                            Margin="8,0,0,0"
+                            Padding="10,3"
+                            Command="{Binding DiscardCommand}" />
+                </StackPanel>
+                <TextBlock VerticalAlignment="Center"
+                           FontWeight="SemiBold"
+                           Text="{Binding PendingChangeCount, StringFormat='{}{0} pending change(s) not yet written'}" />
+            </DockPanel>
+        </Border>
+
         <!-- Conflict and duplicate warnings, each shown only when there is something to warn about. -->
         <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0">
 

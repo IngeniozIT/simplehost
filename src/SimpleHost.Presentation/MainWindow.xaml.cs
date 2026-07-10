@@ -37,6 +37,22 @@ public partial class MainWindow : Window
         _viewModel.DeleteConfirmation = ConfirmDelete;
     }
 
+    // --- Pending changes: preview, apply, discard --------------------------------------------
+
+    private void OnPreviewPendingChangesClick(object sender, RoutedEventArgs e)
+    {
+        // Drive the view-model to compute the diff of what applying would write, then show it in a
+        // read-only modal. Apply and Discard are bound straight to the view-model's commands in XAML.
+        _viewModel.PreviewCommand.Execute(null);
+
+        if (_viewModel.PreviewDiff is not { } diff)
+        {
+            return;
+        }
+
+        new PendingChangesPreviewWindow(diff) { Owner = this }.ShowDialog();
+    }
+
     // --- Adding, editing and deleting a single entry -----------------------------------------
 
     private void OnAddEntryClick(object sender, RoutedEventArgs e) => _viewModel.SaveNewEntry();

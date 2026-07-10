@@ -1,0 +1,33 @@
+# ============================================================================
+# SimpleHost — sample hosts file
+# ============================================================================
+# A ready-made, self-contained hosts file for exercising SimpleHost end to end
+# without touching your real system hosts file. Point the app at it with the
+# "--hosts-file <path>" argument or the SIMPLEHOST_HOSTS_FILE environment
+# variable (see the README). A custom file like this one is written WITHOUT
+# administrator elevation, so it is safe to edit and re-run as often as you like.
+#
+# The layout below exercises every shape SimpleHost understands: uncategorized
+# entries, "# [SimpleHost:Category] <Name>" markers, trailing inline "#"
+# comments, and a disabled (commented-out) entry that is kept but does not
+# resolve. Plain comment lines like these are ignored by the app.
+# ============================================================================
+
+# Entries above the first category marker belong to the "No category" group,
+# which SimpleHost always pins to the top of the list.
+127.0.0.1        localhost
+::1              localhost                 # IPv6 loopback
+
+# [SimpleHost:Category] Local development
+127.0.0.1        api.myapp.test            # backend API
+127.0.0.1        web.myapp.test            # local frontend
+127.0.0.1        admin.myapp.test
+# 127.0.0.1      staging.myapp.test        # disabled: not deployed locally yet
+
+# [SimpleHost:Category] Ad blocking
+0.0.0.0          ads.example.com
+0.0.0.0          tracker.example.net       # third-party analytics beacon
+
+# [SimpleHost:Category] Staging
+203.0.113.10     app.staging.example.com   # RFC 5737 documentation address
+203.0.113.11     api.staging.example.com

@@ -113,6 +113,41 @@ can modify. SimpleHost therefore:
 
 ---
 
+## Running against a custom `hosts` file (no elevation)
+
+By default SimpleHost targets the protected Windows system `hosts` file, which requires
+elevation to write. For local testing — or just to explore the app without touching your
+system configuration — point it at **any custom file** instead. A custom file is read and
+written **without administrator elevation**, so the app never prompts for UAC and your real
+`hosts` file is left completely untouched.
+
+The repository ships a ready-made sample at
+[`samples/hosts.sample`](samples/hosts.sample) that already contains a realistic mix:
+a couple of uncategorized entries, three `# [SimpleHost:Category]` groups, several inline
+`#` comments, and a disabled (commented-out) entry.
+
+Select the file in either of two ways — checked in this order of precedence:
+
+1. **`--hosts-file <path>` command-line argument** (highest precedence):
+
+   ```bash
+   ./src/SimpleHost.Presentation/bin/Debug/net10.0-windows/SimpleHost.exe --hosts-file samples/hosts.sample
+   ```
+
+2. **`SIMPLEHOST_HOSTS_FILE` environment variable** (used when the argument is absent):
+
+   ```bash
+   SIMPLEHOST_HOSTS_FILE=samples/hosts.sample ./src/SimpleHost.Presentation/bin/Debug/net10.0-windows/SimpleHost.exe
+   ```
+
+When neither is set, SimpleHost falls back to the system file
+`C:\Windows\System32\drivers\etc\hosts` (which *does* require elevation). Either a relative
+or an absolute path works; copy the sample somewhere writable and edit it freely — because
+it is a completely valid, standalone `hosts` file, you can re-run against it as often as you
+like without ever affecting your real system configuration.
+
+---
+
 ## URL protocol (deep links)
 
 SimpleHost registers a custom `simplehost://` URL scheme. Opening such a link (from a
@@ -210,10 +245,12 @@ Notes for WSL development:
 
 - The real Windows `hosts` file is reachable read-only at
   `/mnt/c/Windows/System32/drivers/etc/hosts` for inspection during development.
-- **Do not point the app at the real file while developing.** Use a local **sample
-  `hosts` file** so tests and manual runs never touch your system configuration. Writing
-  the real file also requires elevation, which only happens when running the app on the
-  Windows host.
+- **Do not point the app at the real file while developing.** Use the bundled
+  [`samples/hosts.sample`](samples/hosts.sample) via `--hosts-file` (or
+  `SIMPLEHOST_HOSTS_FILE`) so tests and manual runs never touch your system configuration —
+  see [Running against a custom `hosts` file](#running-against-a-custom-hosts-file-no-elevation)
+  above. Writing the real file also requires elevation, which only happens when running the
+  app on the Windows host.
 
 ---
 

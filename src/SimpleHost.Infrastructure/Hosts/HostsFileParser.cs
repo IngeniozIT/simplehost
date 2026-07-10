@@ -105,7 +105,13 @@ public sealed class HostsFileParser
 
     private const string CategoryMarkerPrefix = "[SimpleHost:Category]";
 
-    private static bool TryParseCategoryMarker(string line, out string name)
+    /// <summary>
+    /// Recognizes a <c># [SimpleHost:Category] &lt;Name&gt;</c> marker line and extracts its
+    /// name. The single source of truth for the marker format, shared with the writer so that
+    /// placing an entry under a category and parsing categories back agree. Returns
+    /// <see langword="false"/> for blank lines, plain comments, entries, and nameless markers.
+    /// </summary>
+    public static bool TryParseCategoryMarker(string line, out string name)
     {
         name = null!;
 

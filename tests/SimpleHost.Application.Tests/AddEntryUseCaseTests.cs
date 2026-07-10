@@ -82,13 +82,43 @@ public class AddEntryUseCaseTests
         repository.Entries.Single().Comment.ShouldBeNull();
     }
 
+    [Fact]
+    public void Places_the_new_entry_under_the_chosen_category()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var useCase = new AddEntryUseCase(repository);
+
+        useCase.Execute("10.0.0.1", "api.myapp.test", category: "Work");
+
+        repository.CategoryOf(new HostEntry("10.0.0.1", "api.myapp.test")).ShouldBe("Work");
+    }
+
+    [Fact]
+    public void Leaves_the_new_entry_uncategorized_when_no_category_is_chosen()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var useCase = new AddEntryUseCase(repository);
+
+        useCase.Execute("127.0.0.1", "web.myapp.test");
+
+        repository.CategoryOf(new HostEntry("127.0.0.1", "web.myapp.test")).ShouldBeNull();
+    }
+
     private sealed class RecordingHostsFileRepository : IHostsFileRepository
     {
         private readonly List<HostEntry> _entries = new();
+        private readonly List<(HostEntry Entry, string? Category)> _placements = new();
 
         public IReadOnlyList<HostEntry> Entries => _entries;
 
-        public void AddEntry(HostEntry entry) => _entries.Add(entry);
+        public string? CategoryOf(HostEntry entry)
+            => _placements.Single(placement => placement.Entry == entry).Category;
+
+        public void AddEntry(HostEntry entry, string? category = null)
+        {
+            _entries.Add(entry);
+            _placements.Add((entry, category));
+        }
 
         public IReadOnlyList<HostEntry> GetActiveEntries()
             => _entries.Where(entry => entry.Status == HostEntryStatus.Active).ToList();

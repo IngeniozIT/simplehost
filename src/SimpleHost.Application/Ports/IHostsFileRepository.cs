@@ -10,11 +10,18 @@ namespace SimpleHost.Application.Ports;
 public interface IHostsFileRepository
 {
     /// <summary>
-    /// Adds a new entry to the <c>hosts</c> file, appending it as a new line so it becomes
-    /// part of the stored entries and is returned by subsequent reads.
+    /// Adds a new entry to the <c>hosts</c> file, placing it under the chosen category's
+    /// <c># [SimpleHost:Category] &lt;Name&gt;</c> marker block — appended as the last entry of
+    /// that block — or, when <paramref name="category"/> is <c>null</c>, in the "No category"
+    /// region (before the first marker) so it becomes part of the stored entries and is
+    /// returned by subsequent reads.
     /// </summary>
     /// <param name="entry">The entry to add.</param>
-    void AddEntry(HostEntry entry);
+    /// <param name="category">
+    /// The name of an existing category to place the entry under, or <c>null</c> to leave it
+    /// uncategorized ("No category").
+    /// </param>
+    void AddEntry(HostEntry entry, string? category = null);
 
     /// <summary>
     /// Returns every active (uncommented) entry currently in the <c>hosts</c> file,

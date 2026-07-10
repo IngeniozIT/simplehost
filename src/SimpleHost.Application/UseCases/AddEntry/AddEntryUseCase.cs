@@ -20,10 +20,15 @@ public sealed class AddEntryUseCase(IHostsFileRepository repository)
     /// An optional trailing inline comment to note what the entry is for, or <c>null</c> to
     /// create the entry without a comment.
     /// </param>
-    public HostEntry Execute(string ipAddress, string hostname, string? comment = null)
+    /// <param name="category">
+    /// The name of an existing category to place the entry under, or <c>null</c> to leave it
+    /// uncategorized ("No category").
+    /// </param>
+    public HostEntry Execute(
+        string ipAddress, string hostname, string? comment = null, string? category = null)
     {
         var entry = new HostEntry(ipAddress, hostname, comment);
-        repository.AddEntry(entry);
+        repository.AddEntry(entry, category);
         return entry;
     }
 }

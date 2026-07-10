@@ -8,6 +8,7 @@ using SimpleHost.Application.UseCases.ApplyPendingChanges;
 using SimpleHost.Application.UseCases.DiscardPendingChanges;
 using SimpleHost.Application.UseCases.FilterEntriesByCategory;
 using SimpleHost.Application.UseCases.PreviewPendingChanges;
+using SimpleHost.Application.UseCases.SaveProfile;
 using SimpleHost.Application.UseCases.SearchEntriesByHostname;
 using SimpleHost.Application.UseCases.SearchEntriesByIpAddress;
 using SimpleHost.Application.UseCases.ViewDuplicateEntries;
@@ -16,6 +17,7 @@ using SimpleHost.Application.UseCases.ViewHostnameConflicts;
 using SimpleHost.Domain.Categories;
 using SimpleHost.Domain.Entries;
 using SimpleHost.Domain.Preview;
+using SimpleHost.Domain.Profiles;
 
 namespace SimpleHost.Presentation.ViewModels;
 
@@ -37,6 +39,7 @@ public sealed class MainViewModel : ViewModelBase
     private readonly SearchEntriesByHostnameUseCase _searchByHostname;
     private readonly SearchEntriesByIpAddressUseCase _searchByIpAddress;
     private readonly FilterEntriesByCategoryUseCase _filterByCategory;
+    private readonly SaveProfileUseCase _saveProfile;
     private readonly PendingChangeSet _pendingChanges;
     private readonly RelayCommand _applyCommand;
     private readonly RelayCommand _discardCommand;
@@ -60,6 +63,7 @@ public sealed class MainViewModel : ViewModelBase
         SearchEntriesByHostnameUseCase searchByHostname,
         SearchEntriesByIpAddressUseCase searchByIpAddress,
         FilterEntriesByCategoryUseCase filterByCategory,
+        SaveProfileUseCase saveProfile,
         PendingChangeSet pendingChanges)
     {
         _viewGroupedEntries = viewGroupedEntries;
@@ -71,6 +75,7 @@ public sealed class MainViewModel : ViewModelBase
         _searchByHostname = searchByHostname;
         _searchByIpAddress = searchByIpAddress;
         _filterByCategory = filterByCategory;
+        _saveProfile = saveProfile;
         _pendingChanges = pendingChanges;
         RefreshCommand = new RelayCommand(Refresh);
         _applyCommand = new RelayCommand(ApplyPendingChanges, () => HasPendingChanges);
@@ -184,6 +189,13 @@ public sealed class MainViewModel : ViewModelBase
     /// together. The view keeps it in sync with the selected rows.
     /// </summary>
     public ObservableCollection<HostEntryViewModel> SelectedEntries { get; } = new();
+
+    /// <summary>
+    /// The saved profiles the user can recall — the named presets of enabled categories that have
+    /// been saved through this view-model. <see cref="SaveProfile"/> adds to it (replacing any
+    /// profile of the same name) and <see cref="ActivateProfile"/> recalls one by name.
+    /// </summary>
+    public ObservableCollection<Profile> Profiles { get; } = new();
 
     /// <summary>The human-readable hostname-conflict warnings for the current file.</summary>
     public ObservableCollection<string> HostnameConflictWarnings { get; } = new();
@@ -673,6 +685,66 @@ public sealed class MainViewModel : ViewModelBase
         var target = ToHostEntry(entry);
         _pendingChanges.UpdateEntry(target, target with { Status = status });
     }
+
+    /// <summary>
+    /// Saves the current set of enabled categories as a named profile through the save-profile use
+    /// case and lists it under <see cref="Profiles"/>, replacing any profile already stored under the
+    /// same (trimmed) name. A category counts as enabled when at least one of its entries is
+    /// currently active, so the profile captures which categories are switched on right now. A blank
+    /// name saves nothing, since a profile has to be named to be recalled.
+    /// </summary>
+    public void SaveProfile(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        var profile = _saveProfile.Execute(name, CurrentlyEnabledCategories());
+
+        var existing = Profiles.FirstOrDefault(
+            saved => string.Equals(saved.Name, profile.Name, StringComparison.Ordinal));
+        if (existing is not null)
+        {
+            Profiles.Remove(existing);
+        }
+
+        Profiles.Add(profile);
+    }
+
+    /// <summary>
+    /// Recalls the saved profile named <paramref name="name"/> by staging the pending changes that
+    /// enable every category it lists and disable every other category — including the "No category"
+    /// group — so the recall goes through the same explicit apply step as any other edit rather than
+    /// writing the file directly. Entries already in the target status stage nothing. A name that
+    /// matches no saved profile stages nothing. Nothing is written to the file until the pending
+    /// changes are applied.
+    /// </summary>
+    public void ActivateProfile(string name)
+    {
+        var profile = Profiles.FirstOrDefault(
+            saved => string.Equals(saved.Name, name, StringComparison.Ordinal));
+        if (profile is null)
+        {
+            return;
+        }
+
+        foreach (var group in Groups)
+        {
+            var status = profile.EnabledCategories.Any(
+                enabled => string.Equals(enabled, group.Name, StringComparison.Ordinal))
+                ? HostEntryStatus.Active
+                : HostEntryStatus.Disabled;
+
+            StageCategoryStatusChange(group.Name, status);
+        }
+    }
+
+    private IReadOnlyList<string?> CurrentlyEnabledCategories()
+        => Groups
+            .Where(group => group.Entries.Any(entry => entry.IsActive))
+            .Select(group => group.Name)
+            .ToList();
 
     private void StageCategoryStatusChange(string? category, HostEntryStatus status)
     {

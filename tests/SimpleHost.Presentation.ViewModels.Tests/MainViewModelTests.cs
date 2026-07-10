@@ -8,6 +8,7 @@ using SimpleHost.Application.UseCases.ApplyPendingChanges;
 using SimpleHost.Application.UseCases.DiscardPendingChanges;
 using SimpleHost.Application.UseCases.FilterEntriesByCategory;
 using SimpleHost.Application.UseCases.PreviewPendingChanges;
+using SimpleHost.Application.UseCases.SaveProfile;
 using SimpleHost.Application.UseCases.SearchEntriesByHostname;
 using SimpleHost.Application.UseCases.SearchEntriesByIpAddress;
 using SimpleHost.Application.UseCases.ViewDuplicateEntries;
@@ -15,6 +16,7 @@ using SimpleHost.Application.UseCases.ViewGroupedEntries;
 using SimpleHost.Application.UseCases.ViewHostnameConflicts;
 using SimpleHost.Domain.Categories;
 using SimpleHost.Domain.Entries;
+using SimpleHost.Domain.Profiles;
 using SimpleHost.Presentation.ViewModels;
 
 namespace SimpleHost.Presentation.ViewModels.Tests;
@@ -1466,6 +1468,300 @@ public class MainViewModelTests
             .ShouldBe(new[] { "api.dev.test", "cache.dev.test" });
     }
 
+    [Fact]
+    public void SaveProfile_lists_the_saved_profile_capturing_the_currently_enabled_categories()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }),
+                new CategoryGroup("Development", new[] { new HostEntry("10.0.0.1", "api.test") }),
+                new CategoryGroup("Blocklist", new[]
+                {
+                    new HostEntry("0.0.0.0", "ads.test", null, HostEntryStatus.Disabled),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+
+        viewModel.SaveProfile("Work");
+
+        var profile = viewModel.Profiles.ShouldHaveSingleItem();
+        profile.Name.ShouldBe("Work");
+        profile.EnabledCategories.ShouldBe(new string?[] { null, "Development" });
+    }
+
+    [Fact]
+    public void SaveProfile_treats_a_category_with_any_active_entry_as_enabled()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[]
+                {
+                    new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Disabled),
+                    new HostEntry("10.0.0.2", "db.test", null, HostEntryStatus.Active),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+
+        viewModel.SaveProfile("Work");
+
+        viewModel.Profiles.ShouldHaveSingleItem().EnabledCategories.ShouldBe(new[] { "Development" });
+    }
+
+    [Fact]
+    public void SaveProfile_persists_the_profile_through_the_save_profile_use_case()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("10.0.0.1", "api.test") }),
+            },
+        };
+        var profileStore = new FakeProfileStore();
+        var viewModel = BuildViewModel(repository, profileStore: profileStore);
+        viewModel.Load();
+
+        viewModel.SaveProfile("  Work  ");
+
+        var stored = profileStore.Saved.ShouldHaveSingleItem();
+        stored.Name.ShouldBe("Work");
+        stored.EnabledCategories.ShouldBe(new[] { "Development" });
+    }
+
+    [Fact]
+    public void SaveProfile_replaces_a_profile_saved_under_the_same_name()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("10.0.0.1", "api.test") }),
+                new CategoryGroup("Home", new[]
+                {
+                    new HostEntry("192.168.0.1", "nas.test", null, HostEntryStatus.Disabled),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+        viewModel.SaveProfile("Preset");
+
+        repository.GroupedEntries = new[]
+        {
+            new CategoryGroup("Development", new[]
+            {
+                new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Disabled),
+            }),
+            new CategoryGroup("Home", new[] { new HostEntry("192.168.0.1", "nas.test") }),
+        };
+        viewModel.Refresh();
+        viewModel.SaveProfile("Preset");
+
+        var profile = viewModel.Profiles.ShouldHaveSingleItem();
+        profile.Name.ShouldBe("Preset");
+        profile.EnabledCategories.ShouldBe(new[] { "Home" });
+    }
+
+    [Fact]
+    public void SaveProfile_saves_nothing_for_a_blank_name()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("10.0.0.1", "api.test") }),
+            },
+        };
+        var profileStore = new FakeProfileStore();
+        var viewModel = BuildViewModel(repository, profileStore: profileStore);
+        viewModel.Load();
+
+        viewModel.SaveProfile("   ");
+
+        viewModel.Profiles.ShouldBeEmpty();
+        profileStore.Saved.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ActivateProfile_stages_enabling_the_listed_categories_and_disabling_the_rest()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("10.0.0.1", "api.test") }),
+                new CategoryGroup("Blocklist", new[]
+                {
+                    new HostEntry("0.0.0.0", "ads.test", null, HostEntryStatus.Disabled),
+                }),
+            },
+        };
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        viewModel.SaveProfile("Work");
+
+        // Flip the file so the profile now differs from the current state, then recall it.
+        repository.GroupedEntries = new[]
+        {
+            new CategoryGroup("Development", new[]
+            {
+                new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Disabled),
+            }),
+            new CategoryGroup("Blocklist", new[] { new HostEntry("0.0.0.0", "ads.test") }),
+        };
+        viewModel.Refresh();
+
+        viewModel.ActivateProfile("Work");
+
+        pendingChanges.Changes.Count.ShouldBe(2);
+        var enable = pendingChanges.Changes[0].ShouldBeOfType<UpdateEntryChange>();
+        enable.Replacement.ShouldBe(new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Active));
+        var disable = pendingChanges.Changes[1].ShouldBeOfType<UpdateEntryChange>();
+        disable.Replacement.ShouldBe(new HostEntry("0.0.0.0", "ads.test", null, HostEntryStatus.Disabled));
+    }
+
+    [Fact]
+    public void ActivateProfile_enables_the_no_category_group_when_the_profile_lists_it()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }),
+                new CategoryGroup("Development", new[]
+                {
+                    new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Disabled),
+                }),
+            },
+        };
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        viewModel.SaveProfile("Home");
+
+        repository.GroupedEntries = new[]
+        {
+            new CategoryGroup(null, new[]
+            {
+                new HostEntry("127.0.0.1", "localhost", null, HostEntryStatus.Disabled),
+            }),
+            new CategoryGroup("Development", new[] { new HostEntry("10.0.0.1", "api.test") }),
+        };
+        viewModel.Refresh();
+
+        viewModel.ActivateProfile("Home");
+
+        pendingChanges.Changes.Count.ShouldBe(2);
+        pendingChanges.Changes[0].ShouldBeOfType<UpdateEntryChange>()
+            .Replacement.ShouldBe(new HostEntry("127.0.0.1", "localhost", null, HostEntryStatus.Active));
+        pendingChanges.Changes[1].ShouldBeOfType<UpdateEntryChange>()
+            .Replacement.ShouldBe(new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Disabled));
+    }
+
+    [Fact]
+    public void ActivateProfile_enables_every_listed_category_and_disables_every_unlisted_one()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("10.0.0.1", "api.test") }),
+                new CategoryGroup("Home", new[] { new HostEntry("192.168.0.1", "nas.test") }),
+                new CategoryGroup("Blocklist", new[]
+                {
+                    new HostEntry("0.0.0.0", "ads.test", null, HostEntryStatus.Disabled),
+                }),
+            },
+        };
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        viewModel.SaveProfile("Both"); // captures the two active categories: Development and Home
+
+        repository.GroupedEntries = new[]
+        {
+            new CategoryGroup("Development", new[]
+            {
+                new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Disabled),
+            }),
+            new CategoryGroup("Home", new[]
+            {
+                new HostEntry("192.168.0.1", "nas.test", null, HostEntryStatus.Disabled),
+            }),
+            new CategoryGroup("Blocklist", new[] { new HostEntry("0.0.0.0", "ads.test") }),
+        };
+        viewModel.Refresh();
+
+        viewModel.ActivateProfile("Both");
+
+        pendingChanges.Changes.Count.ShouldBe(3);
+        pendingChanges.Changes[0].ShouldBeOfType<UpdateEntryChange>()
+            .Replacement.ShouldBe(new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Active));
+        pendingChanges.Changes[1].ShouldBeOfType<UpdateEntryChange>()
+            .Replacement.ShouldBe(new HostEntry("192.168.0.1", "nas.test", null, HostEntryStatus.Active));
+        pendingChanges.Changes[2].ShouldBeOfType<UpdateEntryChange>()
+            .Replacement.ShouldBe(new HostEntry("0.0.0.0", "ads.test", null, HostEntryStatus.Disabled));
+    }
+
+    [Fact]
+    public void ActivateProfile_stages_nothing_for_an_unknown_profile_name()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("10.0.0.1", "api.test") }),
+            },
+        };
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+
+        viewModel.ActivateProfile("Missing");
+
+        pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ActivateProfile_stages_changes_without_writing_to_the_file()
+    {
+        // The fake repository throws on every mutating operation, so staging changes (rather than
+        // writing) proves the recall goes through the pending-change set, not straight to disk.
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("10.0.0.1", "api.test") }),
+            },
+        };
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        viewModel.SaveProfile("Work");
+
+        repository.GroupedEntries = new[]
+        {
+            new CategoryGroup("Development", new[]
+            {
+                new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Disabled),
+            }),
+        };
+        viewModel.Refresh();
+
+        viewModel.ActivateProfile("Work");
+
+        pendingChanges.HasChanges.ShouldBeTrue();
+    }
+
     private static FakeHostsFileRepository SampleRepository() => new()
     {
         GroupedEntries = new[]
@@ -1488,7 +1784,9 @@ public class MainViewModelTests
     };
 
     private static MainViewModel BuildViewModel(
-        FakeHostsFileRepository repository, PendingChangeSet? pendingChanges = null) =>
+        FakeHostsFileRepository repository,
+        PendingChangeSet? pendingChanges = null,
+        FakeProfileStore? profileStore = null) =>
         new(
             new ViewGroupedEntriesUseCase(repository),
             new ViewHostnameConflictsUseCase(repository),
@@ -1500,7 +1798,23 @@ public class MainViewModelTests
             new SearchEntriesByHostnameUseCase(repository),
             new SearchEntriesByIpAddressUseCase(repository),
             new FilterEntriesByCategoryUseCase(repository),
+            new SaveProfileUseCase(profileStore ?? new FakeProfileStore()),
             pendingChanges ?? new PendingChangeSet());
+
+    private sealed class FakeProfileStore : IProfileStore
+    {
+        private readonly List<Profile> _saved = new();
+
+        public IReadOnlyList<Profile> Saved => _saved;
+
+        public void Save(Profile profile)
+        {
+            _saved.RemoveAll(existing => existing.Name == profile.Name);
+            _saved.Add(profile);
+        }
+
+        public Profile? Find(string name) => _saved.FirstOrDefault(profile => profile.Name == name);
+    }
 
     private sealed class FakeElevationService(bool isElevated) : IElevationService
     {

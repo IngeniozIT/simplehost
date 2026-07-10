@@ -68,6 +68,14 @@ public sealed class MainViewModel : ViewModelBase
     /// </summary>
     public ObservableCollection<CategoryGroupViewModel> Groups { get; } = new();
 
+    /// <summary>
+    /// The entries the user has currently picked out of the list — the multi-selection the bulk
+    /// commands (<see cref="EnableSelectedEntries"/>, <see cref="DisableSelectedEntries"/>,
+    /// <see cref="DeleteSelectedEntries"/>, <see cref="MoveSelectedEntriesToCategory"/>) act on
+    /// together. The view keeps it in sync with the selected rows.
+    /// </summary>
+    public ObservableCollection<HostEntryViewModel> SelectedEntries { get; } = new();
+
     /// <summary>The human-readable hostname-conflict warnings for the current file.</summary>
     public ObservableCollection<string> HostnameConflictWarnings { get; } = new();
 
@@ -182,6 +190,90 @@ public sealed class MainViewModel : ViewModelBase
         => _pendingChanges.ReorderEntry(ToHostEntry(entry), targetIndex);
 
     /// <summary>
+    /// Stages re-enabling <paramref name="entry"/> so it resolves again, recorded as an in-place
+    /// replacement that keeps its position and content and only flips its status to active. An entry
+    /// that is already active stages nothing. Nothing is written to the file until the pending
+    /// changes are applied.
+    /// </summary>
+    public void EnableEntry(HostEntryViewModel entry) => StageStatusChange(entry, HostEntryStatus.Active);
+
+    /// <summary>
+    /// Stages disabling <paramref name="entry"/> so it stays in the file but no longer resolves,
+    /// recorded as an in-place replacement that keeps its position and content and only flips its
+    /// status to disabled. An entry that is already disabled stages nothing. Nothing is written to
+    /// the file until the pending changes are applied.
+    /// </summary>
+    public void DisableEntry(HostEntryViewModel entry) => StageStatusChange(entry, HostEntryStatus.Disabled);
+
+    /// <summary>
+    /// Stages enabling every entry of <paramref name="category"/> (or the "No category" group when it
+    /// is <c>null</c>) at once, recording an in-place replacement for each entry that is not already
+    /// active. A category that has no entries, or one that is not shown, stages nothing. Nothing is
+    /// written to the file until the pending changes are applied.
+    /// </summary>
+    public void EnableCategory(string? category) => StageCategoryStatusChange(category, HostEntryStatus.Active);
+
+    /// <summary>
+    /// Stages disabling every entry of <paramref name="category"/> (or the "No category" group when
+    /// it is <c>null</c>) at once, recording an in-place replacement for each entry that is not
+    /// already disabled. A category that has no entries, or one that is not shown, stages nothing.
+    /// Nothing is written to the file until the pending changes are applied.
+    /// </summary>
+    public void DisableCategory(string? category) => StageCategoryStatusChange(category, HostEntryStatus.Disabled);
+
+    /// <summary>
+    /// Stages enabling every entry in the current <see cref="SelectedEntries"/> selection, recording
+    /// an in-place replacement for each one that is not already active. Nothing is written to the
+    /// file until the pending changes are applied.
+    /// </summary>
+    public void EnableSelectedEntries()
+    {
+        foreach (var entry in SelectedEntries)
+        {
+            StageStatusChange(entry, HostEntryStatus.Active);
+        }
+    }
+
+    /// <summary>
+    /// Stages disabling every entry in the current <see cref="SelectedEntries"/> selection, recording
+    /// an in-place replacement for each one that is not already disabled. Nothing is written to the
+    /// file until the pending changes are applied.
+    /// </summary>
+    public void DisableSelectedEntries()
+    {
+        foreach (var entry in SelectedEntries)
+        {
+            StageStatusChange(entry, HostEntryStatus.Disabled);
+        }
+    }
+
+    /// <summary>
+    /// Stages deleting every entry in the current <see cref="SelectedEntries"/> selection. Nothing is
+    /// written to the file until the pending changes are applied.
+    /// </summary>
+    public void DeleteSelectedEntries()
+    {
+        foreach (var entry in SelectedEntries)
+        {
+            _pendingChanges.DeleteEntry(ToHostEntry(entry));
+        }
+    }
+
+    /// <summary>
+    /// Stages moving every entry in the current <see cref="SelectedEntries"/> selection into
+    /// <paramref name="category"/> (or "No category" when it is <c>null</c>). An entry already in the
+    /// target category stages nothing. Nothing is written to the file until the pending changes are
+    /// applied.
+    /// </summary>
+    public void MoveSelectedEntriesToCategory(string? category)
+    {
+        foreach (var entry in SelectedEntries)
+        {
+            MoveEntry(entry, category);
+        }
+    }
+
+    /// <summary>
     /// Stages the edits to <paramref name="entry"/> as pending changes: when its IP address,
     /// hostname or comment change, an in-place replacement is recorded; when its
     /// <paramref name="category"/> differs from the category it is currently shown under, a move into
@@ -272,6 +364,31 @@ public sealed class MainViewModel : ViewModelBase
             EditDraft.Hostname,
             NullIfBlank(EditDraft.Comment),
             NullIfBlank(EditDraft.Category));
+    }
+
+    private void StageStatusChange(HostEntryViewModel entry, HostEntryStatus status)
+    {
+        if (entry.Status == status)
+        {
+            return;
+        }
+
+        var target = ToHostEntry(entry);
+        _pendingChanges.UpdateEntry(target, target with { Status = status });
+    }
+
+    private void StageCategoryStatusChange(string? category, HostEntryStatus status)
+    {
+        var group = Groups.FirstOrDefault(group => group.Name == category);
+        if (group is null)
+        {
+            return;
+        }
+
+        foreach (var entry in group.Entries)
+        {
+            StageStatusChange(entry, status);
+        }
     }
 
     private string? CurrentCategoryOf(HostEntryViewModel entry)

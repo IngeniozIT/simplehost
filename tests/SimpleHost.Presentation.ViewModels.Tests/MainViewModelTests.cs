@@ -901,6 +901,317 @@ public class MainViewModelTests
         pendingChanges.Changes.Count.ShouldBe(5);
     }
 
+    [Fact]
+    public void EnableEntry_stages_an_update_to_active_for_a_disabled_entry()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[]
+                {
+                    new HostEntry("0.0.0.0", "blocked.test", "note", HostEntryStatus.Disabled),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+
+        viewModel.EnableEntry(viewModel.Groups[0].Entries[0]);
+
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>();
+        change.Target.ShouldBe(new HostEntry("0.0.0.0", "blocked.test", "note", HostEntryStatus.Disabled));
+        change.Replacement.ShouldBe(new HostEntry("0.0.0.0", "blocked.test", "note", HostEntryStatus.Active));
+    }
+
+    [Fact]
+    public void EnableEntry_stages_nothing_when_the_entry_is_already_active()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "web.test") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+
+        viewModel.EnableEntry(viewModel.Groups[0].Entries[0]);
+
+        pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void DisableEntry_stages_an_update_to_disabled_for_an_active_entry()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "web.test", "note") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+
+        viewModel.DisableEntry(viewModel.Groups[0].Entries[0]);
+
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>();
+        change.Target.ShouldBe(new HostEntry("127.0.0.1", "web.test", "note", HostEntryStatus.Active));
+        change.Replacement.ShouldBe(new HostEntry("127.0.0.1", "web.test", "note", HostEntryStatus.Disabled));
+    }
+
+    [Fact]
+    public void DisableEntry_stages_nothing_when_the_entry_is_already_disabled()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[]
+                {
+                    new HostEntry("0.0.0.0", "blocked.test", null, HostEntryStatus.Disabled),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+
+        viewModel.DisableEntry(viewModel.Groups[0].Entries[0]);
+
+        pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void EnableCategory_stages_enabling_only_the_disabled_entries_of_the_named_category()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Work", new[]
+                {
+                    new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Disabled),
+                    new HostEntry("10.0.0.2", "db.test", null, HostEntryStatus.Active),
+                }),
+                new CategoryGroup("Home", new[]
+                {
+                    new HostEntry("192.168.0.1", "nas.test", null, HostEntryStatus.Disabled),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+
+        viewModel.EnableCategory("Work");
+
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>();
+        change.Target.ShouldBe(new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Disabled));
+        change.Replacement.ShouldBe(new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Active));
+    }
+
+    [Fact]
+    public void DisableCategory_stages_disabling_only_the_active_entries_of_the_named_category()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Work", new[]
+                {
+                    new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Active),
+                    new HostEntry("10.0.0.2", "db.test", null, HostEntryStatus.Disabled),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+
+        viewModel.DisableCategory("Work");
+
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>();
+        change.Target.ShouldBe(new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Active));
+        change.Replacement.ShouldBe(new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Disabled));
+    }
+
+    [Fact]
+    public void EnableCategory_targets_the_no_category_group_when_the_name_is_null()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[]
+                {
+                    new HostEntry("127.0.0.1", "localhost", null, HostEntryStatus.Disabled),
+                }),
+                new CategoryGroup("Work", new[]
+                {
+                    new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Disabled),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+
+        viewModel.EnableCategory(null);
+
+        pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>()
+            .Replacement.ShouldBe(new HostEntry("127.0.0.1", "localhost", null, HostEntryStatus.Active));
+    }
+
+    [Fact]
+    public void EnableCategory_stages_nothing_for_a_category_that_is_not_shown()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Work", new[]
+                {
+                    new HostEntry("10.0.0.1", "api.test", null, HostEntryStatus.Disabled),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+
+        viewModel.EnableCategory("Missing");
+
+        pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void EnableSelectedEntries_stages_enabling_each_selected_entry()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[]
+                {
+                    new HostEntry("0.0.0.0", "a.test", null, HostEntryStatus.Disabled),
+                    new HostEntry("0.0.0.0", "b.test", null, HostEntryStatus.Disabled),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        viewModel.SelectedEntries.Add(viewModel.Groups[0].Entries[0]);
+        viewModel.SelectedEntries.Add(viewModel.Groups[0].Entries[1]);
+
+        viewModel.EnableSelectedEntries();
+
+        pendingChanges.Changes.Count.ShouldBe(2);
+        pendingChanges.Changes.ShouldAllBe(change =>
+            ((UpdateEntryChange)change).Replacement.Status == HostEntryStatus.Active);
+    }
+
+    [Fact]
+    public void DisableSelectedEntries_stages_disabling_each_selected_entry()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[]
+                {
+                    new HostEntry("1.1.1.1", "a.test"),
+                    new HostEntry("2.2.2.2", "b.test"),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        viewModel.SelectedEntries.Add(viewModel.Groups[0].Entries[0]);
+        viewModel.SelectedEntries.Add(viewModel.Groups[0].Entries[1]);
+
+        viewModel.DisableSelectedEntries();
+
+        pendingChanges.Changes.Count.ShouldBe(2);
+        pendingChanges.Changes.ShouldAllBe(change =>
+            ((UpdateEntryChange)change).Replacement.Status == HostEntryStatus.Disabled);
+    }
+
+    [Fact]
+    public void DeleteSelectedEntries_stages_deleting_each_selected_entry()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[]
+                {
+                    new HostEntry("1.1.1.1", "a.test"),
+                    new HostEntry("2.2.2.2", "b.test"),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        viewModel.SelectedEntries.Add(viewModel.Groups[0].Entries[0]);
+        viewModel.SelectedEntries.Add(viewModel.Groups[0].Entries[1]);
+
+        viewModel.DeleteSelectedEntries();
+
+        pendingChanges.Changes.Count.ShouldBe(2);
+        pendingChanges.Changes.Select(change => ((DeleteEntryChange)change).Entry.Hostname)
+            .ShouldBe(new[] { "a.test", "b.test" });
+    }
+
+    [Fact]
+    public void MoveSelectedEntriesToCategory_stages_moving_each_selected_entry()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Work", new[]
+                {
+                    new HostEntry("1.1.1.1", "a.test"),
+                    new HostEntry("2.2.2.2", "b.test"),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        viewModel.SelectedEntries.Add(viewModel.Groups[0].Entries[0]);
+        viewModel.SelectedEntries.Add(viewModel.Groups[0].Entries[1]);
+
+        viewModel.MoveSelectedEntriesToCategory("Home");
+
+        pendingChanges.Changes.Count.ShouldBe(2);
+        pendingChanges.Changes.ShouldAllBe(change =>
+            ((MoveEntryChange)change).TargetCategory == "Home");
+    }
+
+    [Fact]
+    public void Bulk_commands_stage_nothing_for_an_empty_selection()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+
+        viewModel.EnableSelectedEntries();
+        viewModel.DisableSelectedEntries();
+        viewModel.DeleteSelectedEntries();
+        viewModel.MoveSelectedEntriesToCategory("Work");
+
+        pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
     private static MainViewModel BuildViewModel(
         FakeHostsFileRepository repository, PendingChangeSet? pendingChanges = null) =>
         new(

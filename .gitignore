@@ -4,6 +4,9 @@
 [Bb]in/
 [Oo]bj/
 
+# Packaged Windows build (scripts/package-windows.sh output)
+dist/
+
 # Test & coverage artifacts
 [Tt]est[Rr]esults/
 coverage*.xml

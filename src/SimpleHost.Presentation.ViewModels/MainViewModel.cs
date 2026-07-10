@@ -1,8 +1,12 @@
+using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Windows.Input;
+using SimpleHost.Application.Pending;
 using SimpleHost.Application.UseCases.ViewDuplicateEntries;
 using SimpleHost.Application.UseCases.ViewGroupedEntries;
 using SimpleHost.Application.UseCases.ViewHostnameConflicts;
+using SimpleHost.Domain.Entries;
 
 namespace SimpleHost.Presentation.ViewModels;
 
@@ -18,19 +22,30 @@ public sealed class MainViewModel : ViewModelBase
     private readonly ViewGroupedEntriesUseCase _viewGroupedEntries;
     private readonly ViewHostnameConflictsUseCase _viewHostnameConflicts;
     private readonly ViewDuplicateEntriesUseCase _viewDuplicateEntries;
+    private readonly PendingChangeSet _pendingChanges;
     private bool _hasHostnameConflicts;
     private bool _hasDuplicateEntries;
 
     public MainViewModel(
         ViewGroupedEntriesUseCase viewGroupedEntries,
         ViewHostnameConflictsUseCase viewHostnameConflicts,
-        ViewDuplicateEntriesUseCase viewDuplicateEntries)
+        ViewDuplicateEntriesUseCase viewDuplicateEntries,
+        PendingChangeSet pendingChanges)
     {
         _viewGroupedEntries = viewGroupedEntries;
         _viewHostnameConflicts = viewHostnameConflicts;
         _viewDuplicateEntries = viewDuplicateEntries;
+        _pendingChanges = pendingChanges;
         RefreshCommand = new RelayCommand(Refresh);
     }
+
+    /// <summary>
+    /// The confirmation the view supplies before a delete is staged. It is handed the entry the user
+    /// asked to delete and returns <see langword="true"/> to proceed or <see langword="false"/> to
+    /// cancel. When left unset, <see cref="DeleteEntry"/> stages nothing — deletion fails closed until
+    /// the view provides a prompt, since a delete removes a mapping the user may still rely on.
+    /// </summary>
+    public Func<HostEntryViewModel, bool>? DeleteConfirmation { get; set; }
 
     /// <summary>
     /// The entries grouped by category for display, in file order: the "No category" group first,
@@ -94,4 +109,59 @@ public sealed class MainViewModel : ViewModelBase
 
         HasDuplicateEntries = duplicates.HasDuplicates;
     }
+
+    /// <summary>
+    /// Stages a new entry mapping <paramref name="hostname"/> to <paramref name="ipAddress"/> —
+    /// optionally carrying <paramref name="comment"/> and placed under <paramref name="category"/>
+    /// (or "No category" when it is <c>null</c>) — as a pending change. Nothing is written to the
+    /// file until the pending changes are applied.
+    /// </summary>
+    public void AddEntry(
+        string ipAddress, string hostname, string? comment = null, string? category = null)
+        => _pendingChanges.AddEntry(new HostEntry(ipAddress, hostname, comment), category);
+
+    /// <summary>
+    /// Stages the edits to <paramref name="entry"/> as pending changes: when its IP address,
+    /// hostname or comment change, an in-place replacement is recorded; when its
+    /// <paramref name="category"/> differs from the category it is currently shown under, a move into
+    /// the new category is recorded (after the replacement, so the moved entry carries the edits). An
+    /// edit that changes nothing stages nothing. The entry keeps its active-or-disabled status.
+    /// Nothing is written to the file until the pending changes are applied.
+    /// </summary>
+    public void EditEntry(
+        HostEntryViewModel entry, string ipAddress, string hostname, string? comment, string? category)
+    {
+        var target = ToHostEntry(entry);
+        var replacement = new HostEntry(ipAddress, hostname, comment, entry.Status);
+
+        if (replacement != target)
+        {
+            _pendingChanges.UpdateEntry(target, replacement);
+        }
+
+        var currentCategory = Groups.FirstOrDefault(group => group.Entries.Contains(entry))?.Name;
+        if (category != currentCategory)
+        {
+            _pendingChanges.MoveEntry(replacement, category);
+        }
+    }
+
+    /// <summary>
+    /// Stages the deletion of <paramref name="entry"/> as a pending change, but only once
+    /// <see cref="DeleteConfirmation"/> confirms it. When no confirmation is supplied, or the view
+    /// declines, nothing is staged. Nothing is written to the file until the pending changes are
+    /// applied.
+    /// </summary>
+    public void DeleteEntry(HostEntryViewModel entry)
+    {
+        if (DeleteConfirmation?.Invoke(entry) != true)
+        {
+            return;
+        }
+
+        _pendingChanges.DeleteEntry(ToHostEntry(entry));
+    }
+
+    private static HostEntry ToHostEntry(HostEntryViewModel entry)
+        => new(entry.IpAddress, entry.Hostname, entry.Comment, entry.Status);
 }

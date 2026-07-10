@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Shouldly;
+using SimpleHost.Application.Pending;
 using SimpleHost.Application.Ports;
 using SimpleHost.Application.UseCases.ViewDuplicateEntries;
 using SimpleHost.Application.UseCases.ViewGroupedEntries;
@@ -271,11 +272,295 @@ public class MainViewModelTests
             .Hostname.ShouldBe("localhost");
     }
 
-    private static MainViewModel BuildViewModel(FakeHostsFileRepository repository) =>
+    [Fact]
+    public void AddEntry_records_an_add_pending_change_with_the_new_entry_and_category()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+
+        viewModel.AddEntry("127.0.0.1", "api.test", "local api", "Development");
+
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<AddEntryChange>();
+        change.Entry.ShouldBe(new HostEntry("127.0.0.1", "api.test", "local api"));
+        change.Category.ShouldBe("Development");
+    }
+
+    [Fact]
+    public void AddEntry_defaults_a_new_entry_to_no_comment_and_no_category()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+
+        viewModel.AddEntry("10.0.0.1", "app.test");
+
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<AddEntryChange>();
+        change.Entry.ShouldBe(new HostEntry("10.0.0.1", "app.test"));
+        change.Entry.Comment.ShouldBeNull();
+        change.Category.ShouldBeNull();
+    }
+
+    [Fact]
+    public void AddEntry_stages_the_change_without_writing_to_the_file()
+    {
+        // The fake repository throws on every mutating operation, so a passing recording
+        // proves the add was staged as a pending change rather than written to disk.
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+
+        viewModel.AddEntry("127.0.0.1", "api.test");
+
+        pendingChanges.HasChanges.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void EditEntry_records_an_update_pending_change_replacing_the_entry_in_place()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("127.0.0.1", "api.test", "old") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+
+        viewModel.EditEntry(entry, "127.0.0.2", "api.test", "new", "Development");
+
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>();
+        change.Target.ShouldBe(new HostEntry("127.0.0.1", "api.test", "old"));
+        change.Replacement.ShouldBe(new HostEntry("127.0.0.2", "api.test", "new"));
+    }
+
+    [Fact]
+    public void EditEntry_preserves_the_entry_status_when_replacing()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[]
+                {
+                    new HostEntry("0.0.0.0", "blocked.test", null, HostEntryStatus.Disabled),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+
+        viewModel.EditEntry(entry, "0.0.0.0", "still-blocked.test", null, null);
+
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>();
+        change.Replacement.ShouldBe(
+            new HostEntry("0.0.0.0", "still-blocked.test", null, HostEntryStatus.Disabled));
+    }
+
+    [Fact]
+    public void EditEntry_records_a_move_pending_change_when_only_the_category_changes()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("127.0.0.1", "api.test", "keep") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+
+        viewModel.EditEntry(entry, "127.0.0.1", "api.test", "keep", "Production");
+
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<MoveEntryChange>();
+        change.Entry.ShouldBe(new HostEntry("127.0.0.1", "api.test", "keep"));
+        change.TargetCategory.ShouldBe("Production");
+    }
+
+    [Fact]
+    public void EditEntry_records_update_then_move_when_content_and_category_both_change()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("127.0.0.1", "api.test", "old") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+
+        viewModel.EditEntry(entry, "10.0.0.9", "api.test", "new", "Production");
+
+        pendingChanges.Changes.Count.ShouldBe(2);
+        var update = pendingChanges.Changes[0].ShouldBeOfType<UpdateEntryChange>();
+        update.Target.ShouldBe(new HostEntry("127.0.0.1", "api.test", "old"));
+        update.Replacement.ShouldBe(new HostEntry("10.0.0.9", "api.test", "new"));
+        var move = pendingChanges.Changes[1].ShouldBeOfType<MoveEntryChange>();
+        move.Entry.ShouldBe(new HostEntry("10.0.0.9", "api.test", "new"));
+        move.TargetCategory.ShouldBe("Production");
+    }
+
+    [Fact]
+    public void EditEntry_records_nothing_when_neither_content_nor_category_change()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("127.0.0.1", "api.test", "same") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+
+        viewModel.EditEntry(entry, "127.0.0.1", "api.test", "same", "Development");
+
+        pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void EditEntry_moves_an_uncategorized_entry_into_a_named_category()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+
+        viewModel.EditEntry(entry, "127.0.0.1", "localhost", null, "Development");
+
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<MoveEntryChange>();
+        change.TargetCategory.ShouldBe("Development");
+    }
+
+    [Fact]
+    public void EditEntry_treats_an_entry_absent_from_the_groups_as_uncategorized()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+        var entry = new HostEntryViewModel(new HostEntry("127.0.0.1", "orphan.test"));
+
+        // Not present in any group, so its current category is "No category"; moving it to a
+        // named category still records a move, while leaving it uncategorized records nothing.
+        viewModel.EditEntry(entry, "127.0.0.1", "orphan.test", null, null);
+        pendingChanges.HasChanges.ShouldBeFalse();
+
+        viewModel.EditEntry(entry, "127.0.0.1", "orphan.test", null, "Development");
+        pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<MoveEntryChange>()
+            .TargetCategory.ShouldBe("Development");
+    }
+
+    [Fact]
+    public void DeleteEntry_records_a_delete_pending_change_when_the_view_confirms()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost", "loopback") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+        viewModel.DeleteConfirmation = _ => true;
+
+        viewModel.DeleteEntry(entry);
+
+        pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<DeleteEntryChange>()
+            .Entry.ShouldBe(new HostEntry("127.0.0.1", "localhost", "loopback"));
+    }
+
+    [Fact]
+    public void DeleteEntry_records_nothing_when_the_view_declines_the_confirmation()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+        viewModel.DeleteConfirmation = _ => false;
+
+        viewModel.DeleteEntry(entry);
+
+        pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void DeleteEntry_records_nothing_when_the_view_supplies_no_confirmation()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+
+        viewModel.DeleteEntry(entry);
+
+        pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void DeleteEntry_offers_the_entry_being_deleted_to_the_confirmation()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+        HostEntryViewModel? confirmed = null;
+        viewModel.DeleteConfirmation = candidate =>
+        {
+            confirmed = candidate;
+            return true;
+        };
+
+        viewModel.DeleteEntry(entry);
+
+        confirmed.ShouldBeSameAs(entry);
+    }
+
+    private static MainViewModel BuildViewModel(
+        FakeHostsFileRepository repository, PendingChangeSet? pendingChanges = null) =>
         new(
             new ViewGroupedEntriesUseCase(repository),
             new ViewHostnameConflictsUseCase(repository),
-            new ViewDuplicateEntriesUseCase(repository));
+            new ViewDuplicateEntriesUseCase(repository),
+            pendingChanges ?? new PendingChangeSet());
 
     private sealed class FakeHostsFileRepository : IHostsFileRepository
     {

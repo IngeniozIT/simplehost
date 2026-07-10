@@ -37,6 +37,32 @@ public partial class MainWindow : Window
         _viewModel.DeleteConfirmation = ConfirmDelete;
     }
 
+    // --- Search and category filter ----------------------------------------------------------
+
+    private void OnCategoryFilterChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        // Picking a category (including the "No category" group, whose Name is null) narrows to it;
+        // clearing the selection turns the category filter off. The hostname and IP boxes drive the
+        // view-model's search queries directly through their bindings.
+        if (CategoryFilterBox.SelectedItem is CategoryGroupViewModel group)
+        {
+            _viewModel.FilterByCategory(group.Name);
+        }
+        else
+        {
+            _viewModel.ClearCategoryFilter();
+        }
+    }
+
+    private void OnClearFiltersClick(object sender, RoutedEventArgs e)
+    {
+        // Clearing the boxes resets the search queries through their bindings; dropping the combo's
+        // selection turns the category filter off via OnCategoryFilterChanged.
+        HostnameSearchBox.Clear();
+        IpSearchBox.Clear();
+        CategoryFilterBox.SelectedItem = null;
+    }
+
     // --- Pending changes: preview, apply, discard --------------------------------------------
 
     private void OnPreviewPendingChangesClick(object sender, RoutedEventArgs e)

@@ -95,6 +95,37 @@
 
         </StackPanel>
 
+        <!-- Search and category filter: narrow the displayed list by hostname, IP address or category.
+             The hostname and IP boxes drive the view-model's search queries as the user types; the
+             category box drives its category filter. The list bound below shows VisibleGroups, which
+             the view-model keeps narrowed to what matches. -->
+        <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0" Orientation="Horizontal">
+            <TextBlock Text="Host:" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBox x:Name="HostnameSearchBox"
+                     Width="170"
+                     VerticalAlignment="Center"
+                     ToolTip="Narrow the list to entries whose hostname contains this text"
+                     Text="{Binding HostnameQuery, UpdateSourceTrigger=PropertyChanged}" />
+            <TextBlock Text="IP:" VerticalAlignment="Center" Margin="14,0,6,0" />
+            <TextBox x:Name="IpSearchBox"
+                     Width="140"
+                     VerticalAlignment="Center"
+                     ToolTip="Narrow the list to entries whose IP address contains this text"
+                     Text="{Binding IpAddressQuery, UpdateSourceTrigger=PropertyChanged}" />
+            <TextBlock Text="Category:" VerticalAlignment="Center" Margin="14,0,6,0" />
+            <ComboBox x:Name="CategoryFilterBox"
+                      Width="160"
+                      VerticalAlignment="Center"
+                      ItemsSource="{Binding Groups}"
+                      DisplayMemberPath="DisplayName"
+                      ToolTip="Narrow the list to a single category"
+                      SelectionChanged="OnCategoryFilterChanged" />
+            <Button Content="Clear filters"
+                    Margin="14,0,0,0"
+                    Padding="8,2"
+                    Click="OnClearFiltersClick" />
+        </StackPanel>
+
         <!-- Category management and bulk actions. Creating a category stages an empty category; the
              bulk buttons act on the current multi-selection through the view-model. -->
         <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0">

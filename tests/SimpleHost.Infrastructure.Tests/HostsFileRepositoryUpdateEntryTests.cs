@@ -25,6 +25,18 @@ public sealed class HostsFileRepositoryUpdateEntryTests : IDisposable
     }
 
     [Fact]
+    public void Rewrites_the_matching_line_with_the_new_hostname()
+    {
+        File.WriteAllText(_path, "127.0.0.1 localhost\n10.0.0.1 api.myapp.test\n");
+
+        NewRepository().UpdateEntry(
+            new HostEntry("10.0.0.1", "api.myapp.test"),
+            new HostEntry("10.0.0.1", "web.myapp.test"));
+
+        File.ReadAllText(_path).ShouldBe("127.0.0.1 localhost\n10.0.0.1 web.myapp.test\n");
+    }
+
+    [Fact]
     public void Preserves_the_inline_comment_on_the_updated_line()
     {
         File.WriteAllText(_path, "0.0.0.0 ads.example.com # blocked\n");

@@ -64,6 +64,7 @@ public sealed class MainViewModel : ViewModelBase
     private string _ipAddressQuery = string.Empty;
     private string? _categoryFilter;
     private bool _isCategoryFilterActive;
+    private bool _flushDnsAfterSaving;
 
     public MainViewModel(
         ViewGroupedEntriesUseCase viewGroupedEntries,
@@ -289,6 +290,20 @@ public sealed class MainViewModel : ViewModelBase
     /// </summary>
     public Action<string>? ImportExportFailed { get; set; }
 
+    /// <summary>
+    /// The app setting the view binds to for the flush-DNS-after-saving option: when it is on, a
+    /// successful <see cref="ApplyPendingChanges"/> that actually wrote changes is followed by a flush
+    /// of the system DNS cache — through the apply use case's existing DNS-flush capability — so the
+    /// changes take effect immediately instead of waiting for cached lookups to expire. Off by default
+    /// (the flush is opt-in), and raises a change notification when toggled so the view stays in sync.
+    /// A refused or empty save never flushes, whatever this setting holds.
+    /// </summary>
+    public bool FlushDnsAfterSaving
+    {
+        get => _flushDnsAfterSaving;
+        set => SetProperty(ref _flushDnsAfterSaving, value);
+    }
+
     /// <summary>The number of changes the user has staged but not yet written to the file.</summary>
     public int PendingChangeCount => _pendingChanges.Changes.Count;
 
@@ -345,7 +360,7 @@ public sealed class MainViewModel : ViewModelBase
     {
         try
         {
-            _applyPendingChanges.Execute(_pendingChanges, flushDnsAfterSave: false);
+            _applyPendingChanges.Execute(_pendingChanges, flushDnsAfterSave: _flushDnsAfterSaving);
         }
         catch (ElevationRequiredException)
         {

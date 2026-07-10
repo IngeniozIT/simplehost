@@ -212,6 +212,40 @@ public class MainViewModelPendingChangesTests
     }
 
     [Fact]
+    public void Apply_flushes_the_dns_cache_when_the_flush_after_saving_setting_is_enabled()
+    {
+        var flusher = new RecordingDnsCacheFlusher();
+        var viewModel = BuildViewModel(
+            new RecordingHostsFileRepository(), dnsCacheFlusher: flusher);
+        viewModel.FlushDnsAfterSaving = true;
+        viewModel.AddEntry("10.0.0.1", "api.test");
+
+        viewModel.ApplyPendingChanges();
+
+        flusher.FlushCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public void The_flush_dns_after_saving_setting_is_off_by_default()
+    {
+        var viewModel = BuildViewModel(new RecordingHostsFileRepository());
+
+        viewModel.FlushDnsAfterSaving.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Toggling_the_flush_dns_after_saving_setting_raises_a_change_notification()
+    {
+        var viewModel = BuildViewModel(new RecordingHostsFileRepository());
+        var raised = new List<string?>();
+        viewModel.PropertyChanged += (_, args) => raised.Add(args.PropertyName);
+
+        viewModel.FlushDnsAfterSaving = true;
+
+        raised.ShouldContain(nameof(MainViewModel.FlushDnsAfterSaving));
+    }
+
+    [Fact]
     public void Apply_clears_the_preview_diff()
     {
         var repository = new RecordingHostsFileRepository

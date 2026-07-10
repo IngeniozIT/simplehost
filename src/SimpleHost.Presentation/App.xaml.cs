@@ -39,7 +39,10 @@ public partial class App : System.Windows.Application
         _mainViewModel = _compositionRoot.BuildMainViewModel(e.Args);
         _mainViewModel.Load();
 
-        _trayIcon = new SimpleHostTrayIcon(new TrayMenuFactory().Create(), ShowMainWindow, Shutdown);
+        // Share the one view-model between the tray and the main window, so a quick toggle chosen from
+        // the tray is applied straight to the running app and is reflected in the window when it is open.
+        var trayController = new TrayMenuController(_mainViewModel, new TrayMenuFactory());
+        _trayIcon = new SimpleHostTrayIcon(trayController, ShowMainWindow, Shutdown);
     }
 
     protected override void OnExit(ExitEventArgs e)

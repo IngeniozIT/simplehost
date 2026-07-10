@@ -45,6 +45,20 @@ public sealed class HostsFileRepository(
         File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
     }
 
+    public void DeleteCategory(string name)
+    {
+        BackupCurrentFile();
+        var lines = ReadContentLines(File.ReadAllText(filePath));
+
+        var markerIndex = FindCategoryMarkerIndex(lines, name);
+        var blockEnd = FindCategoryBlockEnd(lines, markerIndex + 1);
+        var entries = lines.GetRange(markerIndex + 1, blockEnd - markerIndex - 1);
+        lines.RemoveRange(markerIndex, blockEnd - markerIndex);
+        lines.InsertRange(FindInsertionIndex(lines, null), entries);
+
+        File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
+    }
+
     public void UpdateEntry(HostEntry target, HostEntry replacement)
     {
         BackupCurrentFile();
@@ -135,6 +149,24 @@ public sealed class HostsFileRepository(
     {
         var scanFrom = category is null ? 0 : IndexAfterCategoryMarker(lines, category);
 
+        for (var i = scanFrom; i < lines.Count; i++)
+        {
+            if (HostsFileParser.TryParseCategoryMarker(lines[i], out _))
+            {
+                return i;
+            }
+        }
+
+        return lines.Count;
+    }
+
+    /// <summary>
+    /// Returns the index of the first <c># [SimpleHost:Category] &lt;Name&gt;</c> marker at or after
+    /// <paramref name="scanFrom"/> — the line that ends the category block starting at that point — or
+    /// the line count when no further marker exists, so the block runs to the end of the file.
+    /// </summary>
+    private static int FindCategoryBlockEnd(List<string> lines, int scanFrom)
+    {
         for (var i = scanFrom; i < lines.Count; i++)
         {
             if (HostsFileParser.TryParseCategoryMarker(lines[i], out _))

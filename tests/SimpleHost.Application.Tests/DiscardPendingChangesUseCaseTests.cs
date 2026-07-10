@@ -83,6 +83,8 @@ public class DiscardPendingChangesUseCaseTests
 
     private sealed class RecordingHostsFileRepository(params CategoryGroup[] groups) : IHostsFileRepository
     {
+        public void DeleteCategory(string name) => throw new NotSupportedException();
+
         private readonly List<string> _writeOperations = new();
 
         public IReadOnlyList<string> WriteOperations => _writeOperations;

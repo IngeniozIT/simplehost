@@ -68,6 +68,8 @@ public class CreateCategoryUseCaseTests
 
     private sealed class RecordingHostsFileRepository : IHostsFileRepository
     {
+        public void DeleteCategory(string name) => throw new NotSupportedException();
+
         private readonly List<string> _createdCategories = new();
 
         public IReadOnlyList<string> CreatedCategories => _createdCategories;

@@ -45,6 +45,17 @@ public interface IHostsFileRepository
     void RenameCategory(string currentName, string newName);
 
     /// <summary>
+    /// Deletes a category by removing its <c># [SimpleHost:Category] &lt;Name&gt;</c> marker — the
+    /// first such marker when the name repeats — while keeping every entry that was under it. Those
+    /// entries are relocated into the "No category" region (before the first remaining marker), so
+    /// they fall back to "No category" rather than being lost or absorbed by a neighbouring category.
+    /// Every other marker and entry is left in place. Throws when no marker matches
+    /// <paramref name="name"/>.
+    /// </summary>
+    /// <param name="name">The name of the category to delete.</param>
+    void DeleteCategory(string name);
+
+    /// <summary>
     /// Replaces the first entry that matches <paramref name="target"/> with
     /// <paramref name="replacement"/>, rewriting that entry's <c>hosts</c>-file line in place so
     /// its position — and therefore its order and category membership — is preserved. Used to

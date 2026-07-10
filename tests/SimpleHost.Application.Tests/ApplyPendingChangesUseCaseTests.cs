@@ -221,6 +221,8 @@ public class ApplyPendingChangesUseCaseTests
 
     private sealed class RecordingHostsFileRepository : IHostsFileRepository
     {
+        public void DeleteCategory(string name) => throw new NotSupportedException();
+
         private readonly List<string> _operations = new();
 
         public IReadOnlyList<string> Operations => _operations;

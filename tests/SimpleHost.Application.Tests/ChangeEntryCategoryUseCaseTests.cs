@@ -44,6 +44,8 @@ public class ChangeEntryCategoryUseCaseTests
 
     private sealed class RecordingHostsFileRepository : IHostsFileRepository
     {
+        public void DeleteCategory(string name) => throw new NotSupportedException();
+
         public HostEntry? MovedEntry { get; private set; }
 
         public string? TargetCategory { get; private set; }

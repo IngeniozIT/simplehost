@@ -103,6 +103,8 @@ public class RenameCategoryUseCaseTests
 
     private sealed class RecordingHostsFileRepository : IHostsFileRepository
     {
+        public void DeleteCategory(string name) => throw new NotSupportedException();
+
         private readonly List<(string CurrentName, string NewName)> _renames = new();
 
         public IReadOnlyList<(string CurrentName, string NewName)> Renames => _renames;

@@ -79,6 +79,8 @@ public class PreviewPendingChangesUseCaseTests
 
     private sealed class StubHostsFileRepository(params CategoryGroup[] groups) : IHostsFileRepository
     {
+        public void DeleteCategory(string name) => throw new NotSupportedException();
+
         public int GroupedReads { get; private set; }
 
         public bool WriteWasAttempted { get; private set; }

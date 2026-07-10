@@ -33,6 +33,8 @@ public class DeleteEntryUseCaseTests
 
     private sealed class RecordingHostsFileRepository : IHostsFileRepository
     {
+        public void DeleteCategory(string name) => throw new NotSupportedException();
+
         public HostEntry? Deleted { get; private set; }
 
         public void DeleteEntry(HostEntry entry) => Deleted = entry;

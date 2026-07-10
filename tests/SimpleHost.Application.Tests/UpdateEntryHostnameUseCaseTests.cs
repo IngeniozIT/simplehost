@@ -54,6 +54,8 @@ public class UpdateEntryHostnameUseCaseTests
 
     private sealed class RecordingHostsFileRepository : IHostsFileRepository
     {
+        public void DeleteCategory(string name) => throw new NotSupportedException();
+
         public HostEntry? Target { get; private set; }
 
         public HostEntry? Replacement { get; private set; }

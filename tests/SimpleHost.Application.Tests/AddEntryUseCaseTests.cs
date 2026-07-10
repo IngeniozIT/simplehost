@@ -106,6 +106,8 @@ public class AddEntryUseCaseTests
 
     private sealed class RecordingHostsFileRepository : IHostsFileRepository
     {
+        public void DeleteCategory(string name) => throw new NotSupportedException();
+
         private readonly List<HostEntry> _entries = new();
         private readonly List<(HostEntry Entry, string? Category)> _placements = new();
 

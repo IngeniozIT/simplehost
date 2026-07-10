@@ -222,7 +222,8 @@ public class PendingChangeSetTests
         var changes = new PendingChangeSet();
         changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Missing");
 
-        Should.Throw<InvalidOperationException>(() => changes.ApplyTo(Grouping(NoCategory())));
+        Should.Throw<InvalidOperationException>(() => changes.ApplyTo(Grouping(NoCategory())))
+            .Message.ShouldContain("No category marker found for 'Missing'.");
     }
 
     [Fact]
@@ -233,6 +234,7 @@ public class PendingChangeSetTests
             new HostEntry("127.0.0.1", "web.test"),
             new HostEntry("192.168.0.1", "web.test"));
 
-        Should.Throw<InvalidOperationException>(() => changes.ApplyTo(Grouping(NoCategory())));
+        Should.Throw<InvalidOperationException>(() => changes.ApplyTo(Grouping(NoCategory())))
+            .Message.ShouldContain("No entry found matching");
     }
 }

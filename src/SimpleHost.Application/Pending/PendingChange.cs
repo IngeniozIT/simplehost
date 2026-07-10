@@ -21,6 +21,17 @@ public abstract record PendingChange
     internal abstract void ApplyTo(List<CategoryProjection> groups);
 
     /// <summary>
+    /// Records this change into <paramref name="changes"/>, coalescing it with the change immediately
+    /// before it when both act on the same entry so the set stays minimal — a later change that
+    /// supersedes the preceding one replaces it, and one that returns the entry to the state that
+    /// preceding change started from cancels it. The default simply appends; only kinds that can
+    /// supersede the preceding change override this. Ordering and the projected/written result are
+    /// preserved. Only the immediately preceding change is considered, so a change on another entry in
+    /// between keeps the two apart and never reorders unrelated edits.
+    /// </summary>
+    internal virtual void CoalesceInto(List<PendingChange> changes) => changes.Add(this);
+
+    /// <summary>
     /// Writes this change to the <c>hosts</c> file through <paramref name="repository"/>, calling the
     /// matching repository operation so the on-disk file ends up as the preview projected. Mirrors
     /// <see cref="ApplyTo"/>: the projection predicts what this write performs.
@@ -139,6 +150,30 @@ public sealed record UpdateEntryChange(HostEntry Target, HostEntry Replacement) 
 
     internal override void WriteTo(IHostsFileRepository repository)
         => repository.UpdateEntry(Target, Replacement);
+
+    internal override void CoalesceInto(List<PendingChange> changes)
+    {
+        if (changes.Count > 0
+            && changes[^1] is UpdateEntryChange previous
+            && (previous.Replacement == Target || previous.Target == Target))
+        {
+            if (previous.Target == Replacement)
+            {
+                // The entry returns to the state the preceding update started from: the two cancel.
+                changes.RemoveAt(changes.Count - 1);
+            }
+            else
+            {
+                // Supersede the preceding update, keeping its original target so the net edit still
+                // resolves against the same on-disk (or earlier-staged) entry, in the same position.
+                changes[^1] = new UpdateEntryChange(previous.Target, Replacement);
+            }
+
+            return;
+        }
+
+        changes.Add(this);
+    }
 }
 
 /// <summary>A pending deletion of an existing entry, removing it from its category.</summary>
@@ -153,6 +188,7 @@ public sealed record DeleteEntryChange(HostEntry Entry) : PendingChange
 
     internal override void WriteTo(IHostsFileRepository repository)
         => repository.DeleteEntry(Entry);
+
 }
 
 /// <summary>
@@ -172,6 +208,7 @@ public sealed record MoveEntryChange(HostEntry Entry, string? TargetCategory) : 
 
     internal override void WriteTo(IHostsFileRepository repository)
         => repository.MoveEntryToCategory(Entry, TargetCategory);
+
 }
 
 /// <summary>
@@ -194,4 +231,5 @@ public sealed record ReorderEntryChange(HostEntry Entry, int TargetIndex) : Pend
 
     internal override void WriteTo(IHostsFileRepository repository)
         => repository.ReorderEntry(Entry, TargetIndex);
+
 }

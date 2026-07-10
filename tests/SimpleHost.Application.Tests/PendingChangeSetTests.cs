@@ -489,4 +489,158 @@ public class PendingChangeSetTests
         Should.Throw<ArgumentException>(() => changes.DeleteCategory(name));
         changes.HasChanges.ShouldBeFalse();
     }
+
+    [Fact]
+    public void Inverse_updates_on_the_same_entry_cancel_out()
+    {
+        var active = new HostEntry("127.0.0.1", "web.test");
+        var disabled = active with { Status = HostEntryStatus.Disabled };
+        var changes = new PendingChangeSet();
+
+        changes.UpdateEntry(active, disabled);
+        changes.UpdateEntry(disabled, active);
+
+        changes.HasChanges.ShouldBeFalse();
+        changes.Changes.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Repeating_the_same_update_keeps_a_single_pending_change()
+    {
+        var active = new HostEntry("127.0.0.1", "web.test");
+        var disabled = active with { Status = HostEntryStatus.Disabled };
+        var changes = new PendingChangeSet();
+
+        changes.UpdateEntry(active, disabled);
+        changes.UpdateEntry(active, disabled);
+
+        changes.Changes.ShouldHaveSingleItem()
+            .ShouldBeOfType<UpdateEntryChange>()
+            .Replacement.ShouldBe(disabled);
+    }
+
+    [Fact]
+    public void Chained_updates_on_the_same_entry_collapse_into_a_single_net_update()
+    {
+        var current = Grouping(NoCategory(new HostEntry("127.0.0.1", "web.test")));
+        var changes = new PendingChangeSet();
+
+        changes.UpdateEntry(
+            new HostEntry("127.0.0.1", "web.test"), new HostEntry("10.0.0.1", "web.test"));
+        changes.UpdateEntry(
+            new HostEntry("10.0.0.1", "web.test"), new HostEntry("192.168.0.1", "web.test"));
+
+        var change = changes.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>();
+        change.Target.ShouldBe(new HostEntry("127.0.0.1", "web.test"));
+        change.Replacement.ShouldBe(new HostEntry("192.168.0.1", "web.test"));
+        EntriesUnder(changes.ApplyTo(current), null).ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("192.168.0.1", "web.test"));
+    }
+
+    [Fact]
+    public void A_later_update_from_the_same_original_supersedes_the_earlier_one()
+    {
+        var original = new HostEntry("127.0.0.1", "web.test");
+        var changes = new PendingChangeSet();
+
+        changes.UpdateEntry(original, original with { IpAddress = "10.0.0.1" });
+        changes.UpdateEntry(original, original with { IpAddress = "192.168.0.1" });
+
+        changes.Changes.ShouldHaveSingleItem()
+            .ShouldBeOfType<UpdateEntryChange>()
+            .Replacement.ShouldBe(original with { IpAddress = "192.168.0.1" });
+    }
+
+    [Fact]
+    public void Raises_changed_on_every_record_even_when_coalescing_cancels_a_change()
+    {
+        var active = new HostEntry("127.0.0.1", "web.test");
+        var disabled = active with { Status = HostEntryStatus.Disabled };
+        var changes = new PendingChangeSet();
+        var raised = 0;
+        changes.Changed += (_, _) => raised++;
+
+        changes.UpdateEntry(active, disabled);
+        changes.UpdateEntry(disabled, active);
+
+        raised.ShouldBe(2);
+        changes.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void An_update_on_another_entry_between_two_updates_prevents_coalescing()
+    {
+        var web = new HostEntry("127.0.0.1", "web.test");
+        var webDisabled = web with { Status = HostEntryStatus.Disabled };
+        var api = new HostEntry("10.0.0.1", "api.test");
+        var apiDisabled = api with { Status = HostEntryStatus.Disabled };
+        var current = Grouping(NoCategory(web, api));
+        var changes = new PendingChangeSet();
+
+        changes.UpdateEntry(web, webDisabled);
+        changes.UpdateEntry(api, apiDisabled);
+        changes.UpdateEntry(webDisabled, web);
+
+        // Only the immediately preceding change is coalesced, so the non-adjacent inverse is kept; the
+        // net projection is still correct (web active again, api disabled).
+        changes.Changes.Count.ShouldBe(3);
+        EntriesUnder(changes.ApplyTo(current), null).ShouldBe(new[] { web, apiDisabled });
+    }
+
+    [Fact]
+    public void A_non_update_change_before_an_update_prevents_coalescing()
+    {
+        var current = Grouping(
+            NoCategory(new HostEntry("127.0.0.1", "web.test")),
+            new CategoryGroup("Work", Array.Empty<HostEntry>()));
+        var web = new HostEntry("127.0.0.1", "web.test");
+        var webDisabled = web with { Status = HostEntryStatus.Disabled };
+        var changes = new PendingChangeSet();
+
+        changes.UpdateEntry(web, webDisabled);
+        changes.MoveEntry(webDisabled, "Work");
+        changes.UpdateEntry(webDisabled, web);
+
+        changes.Changes.Count.ShouldBe(3);
+        EntriesUnder(changes.ApplyTo(current), "Work").ShouldHaveSingleItem().ShouldBe(web);
+        EntriesUnder(changes.ApplyTo(current), null).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Cancelling_an_update_removes_only_the_preceding_update()
+    {
+        var other = new HostEntry("10.0.0.9", "other.test");
+        var web = new HostEntry("127.0.0.1", "web.test");
+        var webDisabled = web with { Status = HostEntryStatus.Disabled };
+        var changes = new PendingChangeSet();
+
+        changes.AddEntry(other);
+        changes.UpdateEntry(web, webDisabled);
+        changes.UpdateEntry(webDisabled, web);
+
+        changes.Changes.ShouldHaveSingleItem()
+            .ShouldBeOfType<AddEntryChange>()
+            .Entry.ShouldBe(other);
+    }
+
+    [Fact]
+    public void A_superseding_update_replaces_the_preceding_update_after_an_earlier_change()
+    {
+        var current = Grouping(NoCategory(new HostEntry("127.0.0.1", "web.test")));
+        var changes = new PendingChangeSet();
+
+        changes.AddEntry(new HostEntry("10.0.0.9", "new.test"));
+        changes.UpdateEntry(
+            new HostEntry("127.0.0.1", "web.test"), new HostEntry("10.0.0.1", "web.test"));
+        changes.UpdateEntry(
+            new HostEntry("10.0.0.1", "web.test"), new HostEntry("192.168.0.1", "web.test"));
+
+        changes.Changes.Count.ShouldBe(2);
+        changes.Changes[0].ShouldBeOfType<AddEntryChange>();
+        var update = changes.Changes[1].ShouldBeOfType<UpdateEntryChange>();
+        update.Target.ShouldBe(new HostEntry("127.0.0.1", "web.test"));
+        update.Replacement.ShouldBe(new HostEntry("192.168.0.1", "web.test"));
+        EntriesUnder(changes.ApplyTo(current), null).Select(entry => entry.Hostname)
+            .ShouldBe(new[] { "web.test", "new.test" });
+    }
 }

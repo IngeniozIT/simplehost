@@ -35,6 +35,16 @@ public sealed class HostsFileRepository(
         File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
     }
 
+    public void RenameCategory(string currentName, string newName)
+    {
+        BackupCurrentFile();
+        var lines = ReadContentLines(File.ReadAllText(filePath));
+
+        lines[FindCategoryMarkerIndex(lines, currentName)] = serializer.SerializeCategoryMarker(newName);
+
+        File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
+    }
+
     public void UpdateEntry(HostEntry target, HostEntry replacement)
     {
         BackupCurrentFile();
@@ -142,13 +152,21 @@ public sealed class HostsFileRepository(
     /// Throws when the file has no marker for that category.
     /// </summary>
     private static int IndexAfterCategoryMarker(List<string> lines, string category)
+        => FindCategoryMarkerIndex(lines, category) + 1;
+
+    /// <summary>
+    /// Returns the index of the <c># [SimpleHost:Category] &lt;Name&gt;</c> marker whose name matches
+    /// <paramref name="category"/> — the first such marker when a name repeats. Throws when the file
+    /// has no marker for that category.
+    /// </summary>
+    private static int FindCategoryMarkerIndex(List<string> lines, string category)
     {
         for (var i = 0; i < lines.Count; i++)
         {
             if (HostsFileParser.TryParseCategoryMarker(lines[i], out var name)
                 && name == category)
             {
-                return i + 1;
+                return i;
             }
         }
 

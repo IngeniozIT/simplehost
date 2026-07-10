@@ -33,6 +33,18 @@ public interface IHostsFileRepository
     void CreateCategory(string name);
 
     /// <summary>
+    /// Renames an existing category by rewriting its
+    /// <c># [SimpleHost:Category] &lt;Name&gt;</c> marker with <paramref name="newName"/> — the first
+    /// such marker when the name repeats. Only the marker line changes: the entries below it stay in
+    /// place, so they remain under the (now renamed) category, and every other marker and entry is
+    /// left untouched. Whether the new name collides with an existing category is not checked here;
+    /// callers own that decision. Throws when no marker matches <paramref name="currentName"/>.
+    /// </summary>
+    /// <param name="currentName">The current name of the category to rename.</param>
+    /// <param name="newName">The new name to write into the category's marker.</param>
+    void RenameCategory(string currentName, string newName);
+
+    /// <summary>
     /// Replaces the first entry that matches <paramref name="target"/> with
     /// <paramref name="replacement"/>, rewriting that entry's <c>hosts</c>-file line in place so
     /// its position — and therefore its order and category membership — is preserved. Used to

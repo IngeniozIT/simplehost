@@ -90,6 +90,7 @@ public class DisableEntryUseCaseTests
         public IReadOnlyList<HostEntry> GetEntries() => throw new NotSupportedException();
 
         public void CreateCategory(string name) => throw new NotSupportedException();
+        public void RenameCategory(string currentName, string newName) => throw new NotSupportedException();
 
         public IReadOnlyList<CategoryGroup> GetGroupedEntries()
             => throw new NotSupportedException();

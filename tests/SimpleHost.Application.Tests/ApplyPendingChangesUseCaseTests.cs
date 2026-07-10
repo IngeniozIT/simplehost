@@ -230,6 +230,7 @@ public class ApplyPendingChangesUseCaseTests
 
         public void CreateCategory(string name)
             => _operations.Add($"CreateCategory {name}");
+        public void RenameCategory(string currentName, string newName) => throw new NotSupportedException();
 
         public void UpdateEntry(HostEntry target, HostEntry replacement)
             => _operations.Add($"Update {target} -> {replacement}");

@@ -73,6 +73,7 @@ public class CreateCategoryUseCaseTests
         public IReadOnlyList<string> CreatedCategories => _createdCategories;
 
         public void CreateCategory(string name) => _createdCategories.Add(name);
+        public void RenameCategory(string currentName, string newName) => throw new NotSupportedException();
 
         public void AddEntry(HostEntry entry, string? category = null) => throw new NotSupportedException();
 

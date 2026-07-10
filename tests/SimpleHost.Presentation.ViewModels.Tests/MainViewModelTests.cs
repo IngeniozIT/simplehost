@@ -6,7 +6,10 @@ using SimpleHost.Application.Pending;
 using SimpleHost.Application.Ports;
 using SimpleHost.Application.UseCases.ApplyPendingChanges;
 using SimpleHost.Application.UseCases.DiscardPendingChanges;
+using SimpleHost.Application.UseCases.FilterEntriesByCategory;
 using SimpleHost.Application.UseCases.PreviewPendingChanges;
+using SimpleHost.Application.UseCases.SearchEntriesByHostname;
+using SimpleHost.Application.UseCases.SearchEntriesByIpAddress;
 using SimpleHost.Application.UseCases.ViewDuplicateEntries;
 using SimpleHost.Application.UseCases.ViewGroupedEntries;
 using SimpleHost.Application.UseCases.ViewHostnameConflicts;
@@ -1215,6 +1218,275 @@ public class MainViewModelTests
         pendingChanges.HasChanges.ShouldBeFalse();
     }
 
+    [Fact]
+    public void With_no_active_filter_the_visible_groups_mirror_the_underlying_groups()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+
+        viewModel.VisibleGroups.Select(group => group.DisplayName)
+            .ShouldBe(new[] { "No category", "Development", "Production" });
+        viewModel.VisibleGroups.SelectMany(group => group.Entries.Select(entry => entry.Hostname))
+            .ShouldBe(new[] { "localhost", "router.home", "api.dev.test", "db.dev.test", "app.prod.test" });
+        viewModel.HasActiveFilter.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void With_no_active_filter_the_visible_groups_keep_empty_groups()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }),
+                new CategoryGroup("Empty", Array.Empty<HostEntry>()),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+
+        viewModel.VisibleGroups.Select(group => group.DisplayName)
+            .ShouldBe(new[] { "No category", "Empty" });
+    }
+
+    [Fact]
+    public void A_hostname_query_narrows_the_visible_groups_to_matching_entries()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+
+        viewModel.HostnameQuery = "dev";
+
+        viewModel.VisibleGroups.Select(group => group.DisplayName).ShouldBe(new[] { "Development" });
+        viewModel.VisibleGroups[0].Entries.Select(entry => entry.Hostname)
+            .ShouldBe(new[] { "api.dev.test", "db.dev.test" });
+        viewModel.HasActiveFilter.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void A_hostname_query_matches_case_insensitively_as_a_substring()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+
+        viewModel.HostnameQuery = "PROD";
+
+        viewModel.VisibleGroups.SelectMany(group => group.Entries.Select(entry => entry.Hostname))
+            .ShouldBe(new[] { "app.prod.test" });
+    }
+
+    [Fact]
+    public void An_ip_address_query_narrows_the_visible_groups_to_matching_entries()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+
+        viewModel.IpAddressQuery = "10.0.0";
+
+        viewModel.VisibleGroups.SelectMany(group => group.Entries.Select(entry => entry.Hostname))
+            .ShouldBe(new[] { "api.dev.test", "db.dev.test" });
+    }
+
+    [Fact]
+    public void A_category_filter_narrows_the_visible_groups_to_the_chosen_category()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+
+        viewModel.FilterByCategory("Production");
+
+        viewModel.VisibleGroups.Select(group => group.DisplayName).ShouldBe(new[] { "Production" });
+        viewModel.VisibleGroups[0].Entries.Select(entry => entry.Hostname).ShouldBe(new[] { "app.prod.test" });
+        viewModel.IsCategoryFilterActive.ShouldBeTrue();
+        viewModel.CategoryFilter.ShouldBe("Production");
+        viewModel.HasActiveFilter.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void A_null_category_filter_selects_the_no_category_group()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+
+        viewModel.FilterByCategory(null);
+
+        viewModel.VisibleGroups.Select(group => group.DisplayName).ShouldBe(new[] { "No category" });
+        viewModel.VisibleGroups[0].Entries.Select(entry => entry.Hostname)
+            .ShouldBe(new[] { "localhost", "router.home" });
+        viewModel.IsCategoryFilterActive.ShouldBeTrue();
+        viewModel.CategoryFilter.ShouldBeNull();
+    }
+
+    [Fact]
+    public void The_hostname_ip_and_category_criteria_combine_as_an_intersection()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+
+        viewModel.HostnameQuery = "test";
+        viewModel.IpAddressQuery = "10.0.0";
+        viewModel.FilterByCategory("Development");
+
+        // Every Development entry matches ".test" and "10.0.0", so both survive the intersection.
+        viewModel.VisibleGroups.Select(group => group.DisplayName).ShouldBe(new[] { "Development" });
+        viewModel.VisibleGroups[0].Entries.Select(entry => entry.Hostname)
+            .ShouldBe(new[] { "api.dev.test", "db.dev.test" });
+    }
+
+    [Fact]
+    public void The_intersection_excludes_an_entry_that_fails_any_active_criterion()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+
+        // "api" matches only api.dev.test by hostname; the Production filter then excludes it.
+        viewModel.HostnameQuery = "api";
+        viewModel.FilterByCategory("Production");
+
+        viewModel.VisibleGroups.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void A_query_that_matches_nothing_leaves_the_visible_groups_empty()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+
+        viewModel.HostnameQuery = "no-such-host";
+
+        viewModel.VisibleGroups.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void A_blank_hostname_query_is_inactive_and_shows_every_entry()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+        viewModel.HostnameQuery = "dev";
+
+        viewModel.HostnameQuery = "   ";
+
+        viewModel.VisibleGroups.Select(group => group.DisplayName)
+            .ShouldBe(new[] { "No category", "Development", "Production" });
+        viewModel.HasActiveFilter.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void A_blank_ip_address_query_is_inactive_and_shows_every_entry()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+
+        viewModel.IpAddressQuery = "   ";
+
+        viewModel.VisibleGroups.Select(group => group.DisplayName)
+            .ShouldBe(new[] { "No category", "Development", "Production" });
+        viewModel.HasActiveFilter.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Changing_a_query_raises_a_change_notification_for_the_active_filter_state()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+        var raised = new List<string?>();
+        viewModel.PropertyChanged += (_, args) => raised.Add(args.PropertyName);
+
+        viewModel.HostnameQuery = "dev";
+        raised.ShouldContain(nameof(MainViewModel.HasActiveFilter));
+
+        raised.Clear();
+        viewModel.FilterByCategory("Production");
+        raised.ShouldContain(nameof(MainViewModel.HasActiveFilter));
+    }
+
+    [Fact]
+    public void Clearing_the_category_filter_restores_every_group()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+        viewModel.FilterByCategory("Production");
+
+        viewModel.ClearCategoryFilter();
+
+        viewModel.VisibleGroups.Select(group => group.DisplayName)
+            .ShouldBe(new[] { "No category", "Development", "Production" });
+        viewModel.IsCategoryFilterActive.ShouldBeFalse();
+        viewModel.CategoryFilter.ShouldBeNull();
+        viewModel.HasActiveFilter.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Filtering_leaves_the_underlying_groups_unchanged()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+
+        viewModel.HostnameQuery = "dev";
+        viewModel.FilterByCategory("Development");
+
+        viewModel.Groups.Select(group => group.DisplayName)
+            .ShouldBe(new[] { "No category", "Development", "Production" });
+        viewModel.Groups.SelectMany(group => group.Entries.Select(entry => entry.Hostname))
+            .ShouldBe(new[] { "localhost", "router.home", "api.dev.test", "db.dev.test", "app.prod.test" });
+    }
+
+    [Fact]
+    public void A_visible_entry_is_the_same_instance_as_in_the_underlying_groups()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+
+        viewModel.FilterByCategory("Development");
+
+        var underlying = viewModel.Groups.Single(group => group.DisplayName == "Development").Entries[0];
+        var visible = viewModel.VisibleGroups.Single(group => group.DisplayName == "Development").Entries[0];
+        visible.ShouldBeSameAs(underlying);
+    }
+
+    [Fact]
+    public void Refresh_re_applies_the_active_filter_to_the_freshly_read_data()
+    {
+        var repository = SampleRepository();
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+        viewModel.HostnameQuery = "dev";
+
+        repository.GroupedEntries = new[]
+        {
+            new CategoryGroup("Development", new[]
+            {
+                new HostEntry("10.0.0.1", "api.dev.test"),
+                new HostEntry("10.0.0.9", "cache.dev.test"),
+            }),
+        };
+        viewModel.Refresh();
+
+        viewModel.VisibleGroups.SelectMany(group => group.Entries.Select(entry => entry.Hostname))
+            .ShouldBe(new[] { "api.dev.test", "cache.dev.test" });
+    }
+
+    private static FakeHostsFileRepository SampleRepository() => new()
+    {
+        GroupedEntries = new[]
+        {
+            new CategoryGroup(null, new[]
+            {
+                new HostEntry("127.0.0.1", "localhost"),
+                new HostEntry("192.168.1.1", "router.home"),
+            }),
+            new CategoryGroup("Development", new[]
+            {
+                new HostEntry("10.0.0.1", "api.dev.test"),
+                new HostEntry("10.0.0.2", "db.dev.test"),
+            }),
+            new CategoryGroup("Production", new[]
+            {
+                new HostEntry("172.16.0.1", "app.prod.test"),
+            }),
+        },
+    };
+
     private static MainViewModel BuildViewModel(
         FakeHostsFileRepository repository, PendingChangeSet? pendingChanges = null) =>
         new(
@@ -1225,6 +1497,9 @@ public class MainViewModelTests
             new ApplyPendingChangesUseCase(
                 repository, new FakeElevationService(isElevated: true), new NoOpDnsCacheFlusher()),
             new DiscardPendingChangesUseCase(repository),
+            new SearchEntriesByHostnameUseCase(repository),
+            new SearchEntriesByIpAddressUseCase(repository),
+            new FilterEntriesByCategoryUseCase(repository),
             pendingChanges ?? new PendingChangeSet());
 
     private sealed class FakeElevationService(bool isElevated) : IElevationService
@@ -1269,6 +1544,10 @@ public class MainViewModelTests
 
         public void DeleteEntry(HostEntry entry) => throw new NotSupportedException();
 
-        public IReadOnlyList<HostEntry> GetEntries() => throw new NotSupportedException();
+        // The search use cases read the flat entry list; keep it consistent with the grouped view
+        // by flattening the groups in file order, so a test that sets GroupedEntries also gets a
+        // matching GetEntries without a second, drift-prone setup.
+        public IReadOnlyList<HostEntry> GetEntries()
+            => GroupedEntries.SelectMany(group => group.Entries).ToList();
     }
 }

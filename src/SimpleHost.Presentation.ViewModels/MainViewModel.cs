@@ -6,7 +6,10 @@ using System.Windows.Input;
 using SimpleHost.Application.Pending;
 using SimpleHost.Application.UseCases.ApplyPendingChanges;
 using SimpleHost.Application.UseCases.DiscardPendingChanges;
+using SimpleHost.Application.UseCases.FilterEntriesByCategory;
 using SimpleHost.Application.UseCases.PreviewPendingChanges;
+using SimpleHost.Application.UseCases.SearchEntriesByHostname;
+using SimpleHost.Application.UseCases.SearchEntriesByIpAddress;
 using SimpleHost.Application.UseCases.ViewDuplicateEntries;
 using SimpleHost.Application.UseCases.ViewGroupedEntries;
 using SimpleHost.Application.UseCases.ViewHostnameConflicts;
@@ -31,6 +34,9 @@ public sealed class MainViewModel : ViewModelBase
     private readonly PreviewPendingChangesUseCase _previewPendingChanges;
     private readonly ApplyPendingChangesUseCase _applyPendingChanges;
     private readonly DiscardPendingChangesUseCase _discardPendingChanges;
+    private readonly SearchEntriesByHostnameUseCase _searchByHostname;
+    private readonly SearchEntriesByIpAddressUseCase _searchByIpAddress;
+    private readonly FilterEntriesByCategoryUseCase _filterByCategory;
     private readonly PendingChangeSet _pendingChanges;
     private readonly RelayCommand _applyCommand;
     private readonly RelayCommand _discardCommand;
@@ -39,6 +45,10 @@ public sealed class MainViewModel : ViewModelBase
     private bool _hasDuplicateEntries;
     private HostEntryViewModel? _entryBeingEdited;
     private HostsFileDiff? _previewDiff;
+    private string _hostnameQuery = string.Empty;
+    private string _ipAddressQuery = string.Empty;
+    private string? _categoryFilter;
+    private bool _isCategoryFilterActive;
 
     public MainViewModel(
         ViewGroupedEntriesUseCase viewGroupedEntries,
@@ -47,6 +57,9 @@ public sealed class MainViewModel : ViewModelBase
         PreviewPendingChangesUseCase previewPendingChanges,
         ApplyPendingChangesUseCase applyPendingChanges,
         DiscardPendingChangesUseCase discardPendingChanges,
+        SearchEntriesByHostnameUseCase searchByHostname,
+        SearchEntriesByIpAddressUseCase searchByIpAddress,
+        FilterEntriesByCategoryUseCase filterByCategory,
         PendingChangeSet pendingChanges)
     {
         _viewGroupedEntries = viewGroupedEntries;
@@ -55,6 +68,9 @@ public sealed class MainViewModel : ViewModelBase
         _previewPendingChanges = previewPendingChanges;
         _applyPendingChanges = applyPendingChanges;
         _discardPendingChanges = discardPendingChanges;
+        _searchByHostname = searchByHostname;
+        _searchByIpAddress = searchByIpAddress;
+        _filterByCategory = filterByCategory;
         _pendingChanges = pendingChanges;
         RefreshCommand = new RelayCommand(Refresh);
         _applyCommand = new RelayCommand(ApplyPendingChanges, () => HasPendingChanges);
@@ -87,9 +103,79 @@ public sealed class MainViewModel : ViewModelBase
 
     /// <summary>
     /// The entries grouped by category for display, in file order: the "No category" group first,
-    /// then each category. Rebuilt on every load and refresh.
+    /// then each category. Rebuilt on every load and refresh. This is the underlying data — it is
+    /// never narrowed by the active search or filter; <see cref="VisibleGroups"/> is.
     /// </summary>
     public ObservableCollection<CategoryGroupViewModel> Groups { get; } = new();
+
+    /// <summary>
+    /// The grouped entries the window actually renders: <see cref="Groups"/> narrowed to those
+    /// matching the active <see cref="HostnameQuery"/>, <see cref="IpAddressQuery"/> and category
+    /// filter. With no active filter it mirrors <see cref="Groups"/> (empty groups included); once
+    /// any criterion is active it keeps only matching entries — combining the criteria as an
+    /// intersection — and drops groups left with nothing to show. The underlying
+    /// <see cref="Groups"/> is left unchanged, so clearing the query restores the full view.
+    /// </summary>
+    public ObservableCollection<CategoryGroupViewModel> VisibleGroups { get; } = new();
+
+    /// <summary>
+    /// The hostname substring the visible list is narrowed by, matched case-insensitively through
+    /// the search-by-hostname use case. Blank (empty or whitespace) means no hostname narrowing.
+    /// </summary>
+    public string HostnameQuery
+    {
+        get => _hostnameQuery;
+        set
+        {
+            if (SetProperty(ref _hostnameQuery, value))
+            {
+                OnFilterChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// The IP-address substring the visible list is narrowed by, matched case-insensitively through
+    /// the search-by-IP-address use case. Blank (empty or whitespace) means no IP narrowing.
+    /// </summary>
+    public string IpAddressQuery
+    {
+        get => _ipAddressQuery;
+        set
+        {
+            if (SetProperty(ref _ipAddressQuery, value))
+            {
+                OnFilterChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether a category filter is currently narrowing the visible list. Distinct from
+    /// <see cref="CategoryFilter"/> being <c>null</c>, which — while active — selects the
+    /// "No category" group.
+    /// </summary>
+    public bool IsCategoryFilterActive
+    {
+        get => _isCategoryFilterActive;
+        private set => SetProperty(ref _isCategoryFilterActive, value);
+    }
+
+    /// <summary>
+    /// The category the visible list is narrowed to while <see cref="IsCategoryFilterActive"/>
+    /// holds: a category name, or <c>null</c> for the "No category" group.
+    /// </summary>
+    public string? CategoryFilter
+    {
+        get => _categoryFilter;
+        private set => SetProperty(ref _categoryFilter, value);
+    }
+
+    /// <summary>Whether any of the hostname, IP-address or category criteria is currently active.</summary>
+    public bool HasActiveFilter
+        => !string.IsNullOrWhiteSpace(_hostnameQuery)
+            || !string.IsNullOrWhiteSpace(_ipAddressQuery)
+            || _isCategoryFilterActive;
 
     /// <summary>
     /// The entries the user has currently picked out of the list — the multi-selection the bulk
@@ -224,6 +310,35 @@ public sealed class MainViewModel : ViewModelBase
         _previewCommand.RaiseCanExecuteChanged();
     }
 
+    /// <summary>
+    /// Activates the category filter on <paramref name="category"/> — a category name, or
+    /// <c>null</c> for the "No category" group — narrowing <see cref="VisibleGroups"/> to that
+    /// category while leaving <see cref="Groups"/> unchanged.
+    /// </summary>
+    public void FilterByCategory(string? category)
+    {
+        CategoryFilter = category;
+        IsCategoryFilterActive = true;
+        OnFilterChanged();
+    }
+
+    /// <summary>
+    /// Turns the category filter off, so <see cref="VisibleGroups"/> is no longer narrowed by
+    /// category. Any active hostname or IP-address query still applies.
+    /// </summary>
+    public void ClearCategoryFilter()
+    {
+        CategoryFilter = null;
+        IsCategoryFilterActive = false;
+        OnFilterChanged();
+    }
+
+    private void OnFilterChanged()
+    {
+        OnPropertyChanged(nameof(HasActiveFilter));
+        RebuildVisibleGroups();
+    }
+
     private void RebuildGroups(IReadOnlyList<CategoryGroup> groups)
     {
         Groups.Clear();
@@ -231,6 +346,67 @@ public sealed class MainViewModel : ViewModelBase
         {
             Groups.Add(new CategoryGroupViewModel(group));
         }
+
+        RebuildVisibleGroups();
+    }
+
+    private void RebuildVisibleGroups()
+    {
+        var allowed = ComputeAllowedEntries();
+        VisibleGroups.Clear();
+        foreach (var group in Groups)
+        {
+            if (allowed is null)
+            {
+                VisibleGroups.Add(group);
+                continue;
+            }
+
+            var entries = group.Entries.Where(entry => allowed.Contains(ToHostEntry(entry))).ToList();
+            if (entries.Count > 0)
+            {
+                VisibleGroups.Add(new CategoryGroupViewModel(group.Name, entries));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Builds the set of entries permitted by every active criterion by running each active
+    /// search/filter use case and intersecting their results, or <see langword="null"/> when no
+    /// criterion is active (meaning "show everything"). Each criterion is skipped when inactive, so
+    /// a blank query never narrows the view.
+    /// </summary>
+    private HashSet<HostEntry>? ComputeAllowedEntries()
+    {
+        HashSet<HostEntry>? allowed = null;
+
+        if (!string.IsNullOrWhiteSpace(_hostnameQuery))
+        {
+            allowed = Restrict(allowed, _searchByHostname.Execute(_hostnameQuery));
+        }
+
+        if (!string.IsNullOrWhiteSpace(_ipAddressQuery))
+        {
+            allowed = Restrict(allowed, _searchByIpAddress.Execute(_ipAddressQuery));
+        }
+
+        if (_isCategoryFilterActive)
+        {
+            allowed = Restrict(allowed, _filterByCategory.Execute(_categoryFilter));
+        }
+
+        return allowed;
+    }
+
+    private static HashSet<HostEntry> Restrict(HashSet<HostEntry>? current, IReadOnlyList<HostEntry> matches)
+    {
+        if (current is null)
+        {
+            return new HashSet<HostEntry>(matches);
+        }
+
+        current.IntersectWith(matches);
+        return current;
     }
 
     private void RefreshWarnings()

@@ -6,7 +6,10 @@ using SimpleHost.Application.Pending;
 using SimpleHost.Application.Ports;
 using SimpleHost.Application.UseCases.ApplyPendingChanges;
 using SimpleHost.Application.UseCases.DiscardPendingChanges;
+using SimpleHost.Application.UseCases.FilterEntriesByCategory;
 using SimpleHost.Application.UseCases.PreviewPendingChanges;
+using SimpleHost.Application.UseCases.SearchEntriesByHostname;
+using SimpleHost.Application.UseCases.SearchEntriesByIpAddress;
 using SimpleHost.Application.UseCases.ViewDuplicateEntries;
 using SimpleHost.Application.UseCases.ViewGroupedEntries;
 using SimpleHost.Application.UseCases.ViewHostnameConflicts;
@@ -331,6 +334,9 @@ public class MainViewModelPendingChangesTests
                 new FakeElevationService(isElevated),
                 dnsCacheFlusher ?? new RecordingDnsCacheFlusher()),
             new DiscardPendingChangesUseCase(repository),
+            new SearchEntriesByHostnameUseCase(repository),
+            new SearchEntriesByIpAddressUseCase(repository),
+            new FilterEntriesByCategoryUseCase(repository),
             pendingChanges ?? new PendingChangeSet());
 
     private sealed class FakeElevationService(bool isElevated) : IElevationService

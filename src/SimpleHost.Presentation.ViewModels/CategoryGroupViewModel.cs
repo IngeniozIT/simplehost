@@ -21,6 +21,18 @@ public sealed class CategoryGroupViewModel
         Entries = group.Entries.Select(entry => new HostEntryViewModel(entry)).ToList();
     }
 
+    /// <summary>
+    /// Projects a category from already-built entry view-models rather than domain entries, so a
+    /// filtered view of an existing group can reuse the very same <see cref="HostEntryViewModel"/>
+    /// instances — keeping selection and command identity intact across the underlying and the
+    /// narrowed views.
+    /// </summary>
+    public CategoryGroupViewModel(string? name, IReadOnlyList<HostEntryViewModel> entries)
+    {
+        Name = name;
+        Entries = entries;
+    }
+
     /// <summary>The category name, or <c>null</c> for the "No category" group.</summary>
     public string? Name { get; }
 

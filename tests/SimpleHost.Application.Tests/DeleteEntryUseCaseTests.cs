@@ -54,6 +54,7 @@ public class DeleteEntryUseCaseTests
 
         public void CreateCategory(string name) => throw new NotSupportedException();
         public void RenameCategory(string currentName, string newName) => throw new NotSupportedException();
+        public void ReorderEntry(HostEntry entry, int targetIndex) => throw new NotSupportedException();
 
         public IReadOnlyList<CategoryGroup> GetGroupedEntries()
             => throw new NotSupportedException();

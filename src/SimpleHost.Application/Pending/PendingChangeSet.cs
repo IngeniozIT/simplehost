@@ -49,6 +49,13 @@ public sealed class PendingChangeSet
         => _changes.Add(new MoveEntryChange(entry, targetCategory));
 
     /// <summary>
+    /// Records reordering <paramref name="entry"/> to the zero-based position
+    /// <paramref name="targetIndex"/> among the entries of the category it already belongs to.
+    /// </summary>
+    public void ReorderEntry(HostEntry entry, int targetIndex)
+        => _changes.Add(new ReorderEntryChange(entry, targetIndex));
+
+    /// <summary>
     /// Discards every accumulated change, leaving the set empty and <see cref="HasChanges"/>
     /// <see langword="false"/> again. Used once the changes have been written to the file so they
     /// are no longer pending.

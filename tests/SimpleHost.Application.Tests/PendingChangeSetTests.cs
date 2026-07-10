@@ -153,6 +153,84 @@ public class PendingChangeSetTests
     }
 
     [Fact]
+    public void Projects_a_reordered_entry_to_the_top_of_its_category()
+    {
+        var current = Grouping(new CategoryGroup("Work", new[]
+        {
+            new HostEntry("10.0.0.1", "api.test"),
+            new HostEntry("10.0.0.2", "db.test"),
+            new HostEntry("10.0.0.3", "cache.test"),
+        }));
+        var changes = new PendingChangeSet();
+        changes.ReorderEntry(new HostEntry("10.0.0.3", "cache.test"), 0);
+
+        var projected = changes.ApplyTo(current);
+
+        EntriesUnder(projected, "Work").ShouldBe(new[]
+        {
+            new HostEntry("10.0.0.3", "cache.test"),
+            new HostEntry("10.0.0.1", "api.test"),
+            new HostEntry("10.0.0.2", "db.test"),
+        });
+    }
+
+    [Fact]
+    public void Projects_a_reordered_entry_to_the_bottom_of_its_category()
+    {
+        var current = Grouping(new CategoryGroup("Work", new[]
+        {
+            new HostEntry("10.0.0.1", "api.test"),
+            new HostEntry("10.0.0.2", "db.test"),
+            new HostEntry("10.0.0.3", "cache.test"),
+        }));
+        var changes = new PendingChangeSet();
+        changes.ReorderEntry(new HostEntry("10.0.0.1", "api.test"), 2);
+
+        var projected = changes.ApplyTo(current);
+
+        EntriesUnder(projected, "Work").ShouldBe(new[]
+        {
+            new HostEntry("10.0.0.2", "db.test"),
+            new HostEntry("10.0.0.3", "cache.test"),
+            new HostEntry("10.0.0.1", "api.test"),
+        });
+    }
+
+    [Fact]
+    public void Leaves_other_categories_untouched_when_reordering_within_one()
+    {
+        var current = Grouping(
+            NoCategory(new HostEntry("127.0.0.1", "web.test")),
+            new CategoryGroup("Work", new[]
+            {
+                new HostEntry("10.0.0.1", "api.test"),
+                new HostEntry("10.0.0.2", "db.test"),
+            }));
+        var changes = new PendingChangeSet();
+        changes.ReorderEntry(new HostEntry("10.0.0.2", "db.test"), 0);
+
+        var projected = changes.ApplyTo(current);
+
+        EntriesUnder(projected, null).ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("127.0.0.1", "web.test"));
+        EntriesUnder(projected, "Work").ShouldBe(new[]
+        {
+            new HostEntry("10.0.0.2", "db.test"),
+            new HostEntry("10.0.0.1", "api.test"),
+        });
+    }
+
+    [Fact]
+    public void Throws_when_reordering_an_entry_that_is_not_present()
+    {
+        var changes = new PendingChangeSet();
+        changes.ReorderEntry(new HostEntry("127.0.0.1", "web.test"), 0);
+
+        Should.Throw<InvalidOperationException>(() => changes.ApplyTo(Grouping(NoCategory())))
+            .Message.ShouldContain("No entry found matching");
+    }
+
+    [Fact]
     public void Applies_accumulated_changes_in_the_order_they_were_recorded()
     {
         var current = Grouping(NoCategory());

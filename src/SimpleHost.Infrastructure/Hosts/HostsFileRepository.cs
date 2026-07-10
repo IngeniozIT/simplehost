@@ -82,6 +82,46 @@ public sealed class HostsFileRepository(
         File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
     }
 
+    public void ReorderEntry(HostEntry entry, int targetIndex)
+    {
+        BackupCurrentFile();
+        var lines = ReadContentLines(File.ReadAllText(filePath));
+
+        var from = FindEntryIndex(lines, entry);
+        var blockStart = FindGoverningMarkerIndex(lines, from) + 1;
+        var blockEnd = FindCategoryBlockEnd(lines, blockStart);
+
+        var slots = new List<int>();
+        for (var i = blockStart; i < blockEnd; i++)
+        {
+            if (parser.TryParseEntry(lines[i], out _))
+            {
+                slots.Add(i);
+            }
+        }
+
+        if (targetIndex < 0 || targetIndex >= slots.Count)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(targetIndex),
+                targetIndex,
+                $"Target position is outside the {slots.Count} entries of the category.");
+        }
+
+        var ordinal = slots.IndexOf(from);
+        var ordered = slots.Select(slot => lines[slot]).ToList();
+        var moved = ordered[ordinal];
+        ordered.RemoveAt(ordinal);
+        ordered.Insert(targetIndex, moved);
+
+        for (var j = 0; j < slots.Count; j++)
+        {
+            lines[slots[j]] = ordered[j];
+        }
+
+        File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
+    }
+
     public void DeleteEntry(HostEntry entry)
     {
         BackupCurrentFile();
@@ -176,6 +216,26 @@ public sealed class HostsFileRepository(
         }
 
         return lines.Count;
+    }
+
+    /// <summary>
+    /// Returns the index of the <c># [SimpleHost:Category] &lt;Name&gt;</c> marker that governs the
+    /// line at <paramref name="entryIndex"/> — the last marker before it — or <c>-1</c> when no
+    /// marker precedes it, meaning the line belongs to the "No category" region. The marker index
+    /// plus one is the first line of the governed block.
+    /// </summary>
+    private static int FindGoverningMarkerIndex(List<string> lines, int entryIndex)
+    {
+        var marker = -1;
+        for (var i = 0; i < entryIndex; i++)
+        {
+            if (HostsFileParser.TryParseCategoryMarker(lines[i], out _))
+            {
+                marker = i;
+            }
+        }
+
+        return marker;
     }
 
     /// <summary>

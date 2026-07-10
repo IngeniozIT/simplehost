@@ -76,6 +76,7 @@ public class CreateCategoryUseCaseTests
 
         public void CreateCategory(string name) => _createdCategories.Add(name);
         public void RenameCategory(string currentName, string newName) => throw new NotSupportedException();
+        public void ReorderEntry(HostEntry entry, int targetIndex) => throw new NotSupportedException();
 
         public void AddEntry(HostEntry entry, string? category = null) => throw new NotSupportedException();
 

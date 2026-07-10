@@ -137,3 +137,25 @@ public sealed record MoveEntryChange(HostEntry Entry, string? TargetCategory) : 
     internal override void WriteTo(IHostsFileRepository repository)
         => repository.MoveEntryToCategory(Entry, TargetCategory);
 }
+
+/// <summary>
+/// A pending reorder of an existing entry to a new position within the category it already belongs
+/// to — the drag-and-drop reorder of the list — leaving its category membership and content
+/// unchanged.
+/// </summary>
+/// <param name="Entry">The entry to reorder.</param>
+/// <param name="TargetIndex">
+/// The zero-based position the entry should occupy among its category's entries.
+/// </param>
+public sealed record ReorderEntryChange(HostEntry Entry, int TargetIndex) : PendingChange
+{
+    internal override void ApplyTo(List<CategoryProjection> groups)
+    {
+        var (group, index) = Locate(groups, Entry);
+        group.Entries.RemoveAt(index);
+        group.Entries.Insert(TargetIndex, Entry);
+    }
+
+    internal override void WriteTo(IHostsFileRepository repository)
+        => repository.ReorderEntry(Entry, TargetIndex);
+}

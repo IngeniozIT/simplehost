@@ -120,6 +120,8 @@ public class RenameCategoryUseCaseTests
 
         public void MoveEntryToCategory(HostEntry entry, string? targetCategory) => throw new NotSupportedException();
 
+        public void ReorderEntry(HostEntry entry, int targetIndex) => throw new NotSupportedException();
+
         public void DeleteEntry(HostEntry entry) => throw new NotSupportedException();
 
         public IReadOnlyList<HostEntry> GetActiveEntries() => throw new NotSupportedException();

@@ -101,6 +101,21 @@ public class ApplyPendingChangesUseCaseTests
     }
 
     [Fact]
+    public void Writes_a_pending_reorder_through_the_repository()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
+        var changes = new PendingChangeSet();
+        changes.ReorderEntry(new HostEntry("127.0.0.1", "web.test"), 2);
+
+        useCase.Execute(changes);
+
+        repository.Operations.ShouldHaveSingleItem()
+            .ShouldBe("Reorder HostEntry { IpAddress = 127.0.0.1, Hostname = web.test, "
+                + "Comment = , Status = Active } to 2");
+    }
+
+    [Fact]
     public void Writes_a_pending_move_into_no_category()
     {
         var repository = new RecordingHostsFileRepository();
@@ -239,6 +254,9 @@ public class ApplyPendingChangesUseCaseTests
 
         public void MoveEntryToCategory(HostEntry entry, string? targetCategory)
             => _operations.Add($"Move {entry} to {targetCategory ?? "<none>"}");
+
+        public void ReorderEntry(HostEntry entry, int targetIndex)
+            => _operations.Add($"Reorder {entry} to {targetIndex}");
 
         public void DeleteEntry(HostEntry entry)
             => _operations.Add($"Delete {entry}");

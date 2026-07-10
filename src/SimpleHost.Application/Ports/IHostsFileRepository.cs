@@ -83,6 +83,26 @@ public interface IHostsFileRepository
     void MoveEntryToCategory(HostEntry entry, string? targetCategory);
 
     /// <summary>
+    /// Reorders the first entry that matches <paramref name="entry"/> to the zero-based position
+    /// <paramref name="targetIndex"/> among the entries of the category block it already belongs to,
+    /// rewriting that block's entry lines in the new order so the change is persisted purely by line
+    /// order — there is no separate ordering metadata. Only the entry lines of that one block are
+    /// reordered: the category's <c># [SimpleHost:Category] &lt;Name&gt;</c> marker, any blank lines
+    /// or plain comments interleaved within the block, and every other category and its entries are
+    /// left in place; the entry's own content (IP, hostname, inline comment, and active/disabled
+    /// status) is unchanged. <paramref name="targetIndex"/> counts entries only — active and
+    /// disabled (commented-out) alike — in file order, starting at 0. Throws
+    /// <see cref="InvalidOperationException"/> when no entry matches, and
+    /// <see cref="ArgumentOutOfRangeException"/> when <paramref name="targetIndex"/> falls outside
+    /// the range of the block's entries.
+    /// </summary>
+    /// <param name="entry">The existing entry to reorder, as previously read from the file.</param>
+    /// <param name="targetIndex">
+    /// The zero-based position the entry should occupy among its category's entries after the move.
+    /// </param>
+    void ReorderEntry(HostEntry entry, int targetIndex);
+
+    /// <summary>
     /// Removes the first entry that matches <paramref name="entry"/> from the <c>hosts</c> file,
     /// deleting its line so the entry disappears from subsequent reads. Matching is by parsed
     /// content (IP, hostname, inline comment, active/disabled status) rather than raw text, so a

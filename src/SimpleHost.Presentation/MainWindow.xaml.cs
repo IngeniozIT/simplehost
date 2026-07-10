@@ -12,7 +12,8 @@ namespace SimpleHost.Presentation;
 /// deleted after a confirmation prompt, enabled or disabled, moved between categories (by the Move
 /// action or by dragging a row onto a category), and reordered within a category by dragging. Whole
 /// categories can be created, renamed, deleted and enabled or disabled, and a multi-selection of
-/// entries can be enabled, disabled, deleted or moved at once. Every action drives the
+/// entries can be enabled, disabled, deleted or moved at once. The current set of enabled categories
+/// can be saved as a named profile and a saved profile switched back to. Every action drives the
 /// <see cref="MainViewModel"/>'s commands; nothing is written to the file until the pending changes
 /// are applied.
 /// </summary>
@@ -273,6 +274,33 @@ public partial class MainWindow : Window
         if (GroupOf(sender) is { } group)
         {
             _viewModel.DisableCategory(group.Name);
+        }
+    }
+
+    // --- Profiles: save the current enabled categories, switch to a saved one ----------------
+
+    private void OnSaveProfileClick(object sender, RoutedEventArgs e)
+    {
+        // Save the categories that are enabled right now under the typed name, replacing any profile
+        // already saved under it. A blank name saves nothing, so the view-model ignores it; clear the
+        // box either way once the save has been driven.
+        var name = ProfileNameBox.Text.Trim();
+        if (name.Length == 0)
+        {
+            return;
+        }
+
+        _viewModel.SaveProfile(name);
+        ProfileNameBox.Clear();
+    }
+
+    private void OnSwitchProfileClick(object sender, RoutedEventArgs e)
+    {
+        // Recall the profile picked in the combo by its name (SelectedValuePath), staging the pending
+        // changes that enable its categories and disable the rest. With nothing selected, do nothing.
+        if (ProfilesBox.SelectedValue is string name)
+        {
+            _viewModel.ActivateProfile(name);
         }
     }
 

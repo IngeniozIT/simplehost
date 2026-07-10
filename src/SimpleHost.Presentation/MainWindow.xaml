@@ -146,6 +146,36 @@
             </StackPanel>
         </StackPanel>
 
+        <!-- Profiles: named presets of the enabled categories. The combo lists every saved profile
+             (the view-model's Profiles collection); "Switch to" recalls the selected one, staging the
+             pending changes that enable its categories and disable the rest, to be written through the
+             pending-changes Apply like any other edit. The name box plus "Save profile" captures which
+             categories are enabled right now under that name, replacing any profile already saved under
+             it; a blank name saves nothing. Every action drives the view-model's profile surface. -->
+        <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0" Orientation="Horizontal">
+            <TextBlock Text="Profiles:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <ComboBox x:Name="ProfilesBox"
+                      Width="180"
+                      VerticalAlignment="Center"
+                      ItemsSource="{Binding Profiles}"
+                      DisplayMemberPath="Name"
+                      SelectedValuePath="Name"
+                      ToolTip="The saved profiles you can switch to" />
+            <Button Content="Switch to"
+                    Margin="8,0,0,0"
+                    Padding="8,2"
+                    Click="OnSwitchProfileClick" />
+            <TextBlock Text="Save as:" VerticalAlignment="Center" Margin="16,0,6,0" />
+            <TextBox x:Name="ProfileNameBox"
+                     Width="150"
+                     VerticalAlignment="Center"
+                     ToolTip="Name to save the currently enabled categories under" />
+            <Button Content="Save profile"
+                    Margin="8,0,0,0"
+                    Padding="8,2"
+                    Click="OnSaveProfileClick" />
+        </StackPanel>
+
         <!-- Add a new entry: the shared entry form bound to the view-model's new-entry draft, with
              its inline IP/hostname validation, and an Add button enabled only while the draft is valid. -->
         <Border DockPanel.Dock="Bottom"

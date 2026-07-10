@@ -36,6 +36,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <!-- Command bar: search + filter + add. -->
@@ -68,36 +69,6 @@
                                    Content="Add entry"
                                    Click="OnAddEntryClick" />
                     </Grid>
-
-                    <!-- Pending-changes bar: shown only while changes are staged. -->
-                    <ui:Card Grid.Row="1"
-                             Margin="0,0,0,12"
-                             Visibility="{Binding HasPendingChanges, Converter={StaticResource BoolToVisibility}}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <ui:SymbolIcon Symbol="Edit24" Margin="0,0,10,0" />
-                                <TextBlock VerticalAlignment="Center"
-                                           FontWeight="SemiBold"
-                                           Text="{Binding PendingChangeCount, StringFormat='{}{0} unsaved change(s)'}" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <Button Content="Preview"
-                                        IsEnabled="{Binding HasPendingChanges}"
-                                        Click="OnPreviewPendingChangesClick" />
-                                <Button Content="Discard"
-                                        Margin="8,0,0,0"
-                                        Command="{Binding DiscardCommand}" />
-                                <ui:Button Content="Apply"
-                                           Appearance="Primary"
-                                           Margin="8,0,0,0"
-                                           Command="{Binding ApplyCommand}" />
-                            </StackPanel>
-                        </Grid>
-                    </ui:Card>
 
                     <!-- Conflict and duplicate warnings, each shown only when relevant. -->
                     <StackPanel Grid.Row="2">
@@ -313,6 +284,36 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
+
+                    <!-- Pending-changes bar: docked beneath the list, shown only while changes are staged. -->
+                    <ui:Card Grid.Row="5"
+                             Margin="0,12,0,0"
+                             Visibility="{Binding HasPendingChanges, Converter={StaticResource BoolToVisibility}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <ui:SymbolIcon Symbol="Edit24" Margin="0,0,10,0" />
+                                <TextBlock VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           Text="{Binding PendingChangeCount, StringFormat='{}{0} unsaved change(s)'}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Content="Preview"
+                                        IsEnabled="{Binding HasPendingChanges}"
+                                        Click="OnPreviewPendingChangesClick" />
+                                <Button Content="Discard"
+                                        Margin="8,0,0,0"
+                                        Command="{Binding DiscardCommand}" />
+                                <ui:Button Content="Apply"
+                                           Appearance="Primary"
+                                           Margin="8,0,0,0"
+                                           Command="{Binding ApplyCommand}" />
+                            </StackPanel>
+                        </Grid>
+                    </ui:Card>
                 </Grid>
             </TabItem>
 

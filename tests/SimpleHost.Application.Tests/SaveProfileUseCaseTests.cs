@@ -81,5 +81,7 @@ public class SaveProfileUseCaseTests
         public List<Profile> Saved { get; } = [];
 
         public void Save(Profile profile) => Saved.Add(profile);
+
+        public Profile? Find(string name) => throw new NotSupportedException();
     }
 }

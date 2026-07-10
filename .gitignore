@@ -1,1 +1,18 @@
 .claude/
+
+# .NET build output
+[Bb]in/
+[Oo]bj/
+
+# Test & coverage artifacts
+[Tt]est[Rr]esults/
+coverage*.xml
+coverage*.json
+*.coverage
+
+# Stryker mutation testing
+StrykerOutput/
+
+# IDE / user files
+.vs/
+*.user

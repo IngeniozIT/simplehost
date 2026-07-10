@@ -103,6 +103,23 @@ public sealed class HostsFileParser
         return groups;
     }
 
+    /// <summary>
+    /// Parses a single line as a host entry — active or disabled — returning
+    /// <see langword="true"/> and the entry when the line is one, and <see langword="false"/> for
+    /// blank lines, plain comments, and <c># [SimpleHost:Category] &lt;Name&gt;</c> markers. Lets
+    /// callers match a specific line back to the <see cref="HostEntry"/> it represents (for
+    /// example, to locate the line to rewrite when editing an entry).
+    /// </summary>
+    public bool TryParseEntry(string line, out HostEntry entry)
+    {
+        if (TryParseActiveLine(line, out entry))
+        {
+            return true;
+        }
+
+        return TryParseDisabledLine(line, out entry);
+    }
+
     private const string CategoryMarkerPrefix = "[SimpleHost:Category]";
 
     /// <summary>

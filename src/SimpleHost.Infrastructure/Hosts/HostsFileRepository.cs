@@ -23,6 +23,33 @@ public sealed class HostsFileRepository(
         File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
     }
 
+    public void UpdateEntry(HostEntry target, HostEntry replacement)
+    {
+        var lines = ReadContentLines(File.ReadAllText(filePath));
+
+        lines[FindEntryIndex(lines, target)] = serializer.SerializeEntry(replacement);
+
+        File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
+    }
+
+    /// <summary>
+    /// Returns the index of the first line that parses back to <paramref name="target"/> — matched
+    /// by its parsed content rather than by raw text, so incidental whitespace differences do not
+    /// prevent a match. Throws when no line matches.
+    /// </summary>
+    private int FindEntryIndex(List<string> lines, HostEntry target)
+    {
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (parser.TryParseEntry(lines[i], out var entry) && entry == target)
+            {
+                return i;
+            }
+        }
+
+        throw new InvalidOperationException($"No entry found matching '{target}'.");
+    }
+
     /// <summary>
     /// Splits the file's text into its content lines, dropping the empty trailing element that
     /// a final newline produces so the list holds exactly the lines the file contains.

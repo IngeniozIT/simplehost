@@ -41,6 +41,9 @@ public class ViewGroupedEntriesUseCaseTests
 
         public IReadOnlyList<HostEntry> GetEntries() => throw new NotSupportedException();
 
+        public void UpdateEntry(HostEntry target, HostEntry replacement)
+            => throw new NotSupportedException();
+
         public IReadOnlyList<CategoryGroup> GetGroupedEntries() => groups;
     }
 }

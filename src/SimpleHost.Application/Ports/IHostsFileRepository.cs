@@ -24,6 +24,17 @@ public interface IHostsFileRepository
     void AddEntry(HostEntry entry, string? category = null);
 
     /// <summary>
+    /// Replaces the first entry that matches <paramref name="target"/> with
+    /// <paramref name="replacement"/>, rewriting that entry's <c>hosts</c>-file line in place so
+    /// its position — and therefore its order and category membership — is preserved. Used to
+    /// edit an existing entry, such as changing its IP address while keeping its hostname,
+    /// comment, and active/disabled status.
+    /// </summary>
+    /// <param name="target">The existing entry to replace, as previously read from the file.</param>
+    /// <param name="replacement">The entry to write in its place.</param>
+    void UpdateEntry(HostEntry target, HostEntry replacement);
+
+    /// <summary>
     /// Returns every active (uncommented) entry currently in the <c>hosts</c> file,
     /// in the order they appear.
     /// </summary>

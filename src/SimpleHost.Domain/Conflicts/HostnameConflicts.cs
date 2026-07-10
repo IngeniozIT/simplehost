@@ -1,18 +1,23 @@
+using System.Net;
+using System.Net.Sockets;
 using SimpleHost.Domain.Entries;
 
 namespace SimpleHost.Domain.Conflicts;
 
 /// <summary>
 /// The outcome of scanning a set of entries for hostnames that resolve ambiguously — that is,
-/// hostnames mapped to more than one distinct IP address. Produced so the UI can warn the user
-/// about conflicts that need resolving.
+/// hostnames mapped to conflicting IP addresses. Produced so the UI can warn the user about
+/// conflicts that need resolving.
 /// </summary>
 /// <remarks>
 /// Hostnames are grouped case-insensitively (DNS resolution is case-insensitive), while IP
 /// addresses are compared exactly. A hostname mapped to a single IP address — even when repeated
-/// across several identical entries — is not a conflict; only two or more distinct IP addresses for
-/// the same hostname are. Conflicts are reported in the order their hostnames are first seen, and
-/// each conflict lists its IP addresses in first-seen order.
+/// across several identical entries — is not a conflict. Two or more distinct IP addresses are a
+/// conflict only when at least two of them share an address family: a single IPv4 address paired
+/// with a single IPv6 address is the normal dual-stack case (for example <c>localhost</c> at
+/// <c>127.0.0.1</c> and <c>::1</c>) and is not reported. Conflicts are listed in the order their
+/// hostnames are first seen, and each conflict lists all the mapped IP addresses in first-seen
+/// order.
 /// </remarks>
 public sealed record HostnameConflicts
 {
@@ -28,17 +33,19 @@ public sealed record HostnameConflicts
     public IReadOnlyList<HostnameConflict> Conflicts { get; }
 
     /// <summary>
-    /// Whether any hostname is mapped to more than one distinct IP address.
+    /// Whether any hostname is mapped to conflicting IP addresses — two or more distinct addresses
+    /// of the same family.
     /// </summary>
     public bool HasConflicts => Conflicts.Count > 0;
 
     /// <summary>
-    /// Scans <paramref name="entries"/> for hostnames mapped to more than one distinct IP address.
+    /// Scans <paramref name="entries"/> for hostnames mapped to conflicting IP addresses — two or
+    /// more distinct addresses of the same family (a lone IPv4/IPv6 pair is not a conflict).
     /// </summary>
     /// <param name="entries">The entries to scan, in file order.</param>
     /// <returns>
-    /// A report listing one <see cref="HostnameConflict"/> per hostname that resolves to two or more
-    /// distinct IP addresses; an empty report when every hostname is consistent.
+    /// A report listing one <see cref="HostnameConflict"/> per hostname that resolves to conflicting
+    /// IP addresses; an empty report when every hostname is consistent.
     /// </returns>
     public static HostnameConflicts Of(IEnumerable<HostEntry> entries)
     {
@@ -64,7 +71,7 @@ public sealed record HostnameConflicts
         foreach (var key in order)
         {
             var bucket = buckets[key];
-            if (bucket.IpAddresses.Count > 1)
+            if (HasSameFamilyConflict(bucket.IpAddresses))
             {
                 conflicts.Add(HostnameConflict.For(bucket.Hostname, bucket.IpAddresses));
             }
@@ -72,6 +79,30 @@ public sealed record HostnameConflicts
 
         return new HostnameConflicts(conflicts);
     }
+
+    /// <summary>
+    /// Whether the distinct IP addresses a single hostname maps to include two or more of the same
+    /// address family. A lone IPv4 address alongside a lone IPv6 address (the dual-stack case) is
+    /// not a conflict; a second address of a family already seen is.
+    /// </summary>
+    private static bool HasSameFamilyConflict(IReadOnlyList<string> distinctIpAddresses)
+    {
+        var seenFamilies = new HashSet<AddressFamily>();
+        foreach (var ipAddress in distinctIpAddresses)
+        {
+            if (!seenFamilies.Add(FamilyOf(ipAddress)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static AddressFamily FamilyOf(string ipAddress) =>
+        IPAddress.TryParse(ipAddress, out var parsed)
+            ? parsed.AddressFamily
+            : AddressFamily.Unknown;
 
     private sealed class Bucket(string hostname)
     {

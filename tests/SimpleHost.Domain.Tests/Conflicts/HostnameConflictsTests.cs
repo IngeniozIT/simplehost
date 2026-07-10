@@ -140,4 +140,60 @@ public class HostnameConflictsTests
         report.Conflicts[0].Message.ShouldBe(
             "'api.test' is mapped to conflicting IP addresses: 127.0.0.1, 10.0.0.9.");
     }
+
+    [Fact]
+    public void A_lone_ipv4_and_ipv6_pair_for_the_same_hostname_is_the_dual_stack_case_not_a_conflict()
+    {
+        var report = HostnameConflicts.Of(new[]
+        {
+            new HostEntry("127.0.0.1", "localhost"),
+            new HostEntry("::1", "localhost"),
+        });
+
+        report.HasConflicts.ShouldBeFalse();
+        report.Conflicts.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Two_distinct_ipv6_addresses_for_the_same_hostname_are_a_conflict()
+    {
+        var report = HostnameConflicts.Of(new[]
+        {
+            new HostEntry("::1", "api.test"),
+            new HostEntry("2001:db8::1", "api.test"),
+        });
+
+        report.HasConflicts.ShouldBeTrue();
+        report.Conflicts.Count.ShouldBe(1);
+        report.Conflicts[0].IpAddresses.ShouldBe(new[] { "::1", "2001:db8::1" });
+    }
+
+    [Fact]
+    public void A_third_address_that_shares_a_family_with_a_dual_stack_pair_is_a_conflict_listing_all_ips()
+    {
+        var report = HostnameConflicts.Of(new[]
+        {
+            new HostEntry("127.0.0.1", "api.test"),
+            new HostEntry("::1", "api.test"),
+            new HostEntry("10.0.0.9", "api.test"),
+        });
+
+        report.HasConflicts.ShouldBeTrue();
+        report.Conflicts.Count.ShouldBe(1);
+        report.Conflicts[0].IpAddresses.ShouldBe(new[] { "127.0.0.1", "::1", "10.0.0.9" });
+    }
+
+    [Fact]
+    public void Two_addresses_that_are_not_valid_ips_share_an_unknown_family_and_conflict()
+    {
+        var report = HostnameConflicts.Of(new[]
+        {
+            new HostEntry("not-an-ip", "api.test"),
+            new HostEntry("also-bogus", "api.test"),
+        });
+
+        report.HasConflicts.ShouldBeTrue();
+        report.Conflicts.Count.ShouldBe(1);
+        report.Conflicts[0].IpAddresses.ShouldBe(new[] { "not-an-ip", "also-bogus" });
+    }
 }

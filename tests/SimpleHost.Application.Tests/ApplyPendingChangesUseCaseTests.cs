@@ -13,7 +13,7 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_a_pending_addition_through_the_repository()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository);
+        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
         var changes = new PendingChangeSet();
         changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Work");
 
@@ -28,7 +28,7 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_a_pending_uncategorised_addition_with_no_category()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository);
+        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
         var changes = new PendingChangeSet();
         changes.AddEntry(new HostEntry("127.0.0.1", "web.test"));
 
@@ -43,7 +43,7 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_a_pending_update_through_the_repository()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository);
+        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
         var changes = new PendingChangeSet();
         changes.UpdateEntry(
             new HostEntry("127.0.0.1", "web.test"),
@@ -61,7 +61,7 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_a_pending_deletion_through_the_repository()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository);
+        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
         var changes = new PendingChangeSet();
         changes.DeleteEntry(new HostEntry("10.0.0.1", "api.test"));
 
@@ -76,7 +76,7 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_a_pending_move_through_the_repository()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository);
+        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
         var changes = new PendingChangeSet();
         changes.MoveEntry(new HostEntry("127.0.0.1", "web.test"), "Work");
 
@@ -91,7 +91,7 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_a_pending_move_into_no_category()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository);
+        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
         var changes = new PendingChangeSet();
         changes.MoveEntry(new HostEntry("127.0.0.1", "web.test"), null);
 
@@ -106,7 +106,7 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_every_accumulated_change_in_the_order_they_were_recorded()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository);
+        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
         var changes = new PendingChangeSet();
         changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Work");
         changes.DeleteEntry(new HostEntry("127.0.0.1", "web.test"));
@@ -129,7 +129,7 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_nothing_when_no_changes_are_pending()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository);
+        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
 
         useCase.Execute(new PendingChangeSet());
 
@@ -140,7 +140,7 @@ public class ApplyPendingChangesUseCaseTests
     public void Clears_the_pending_changes_once_they_have_been_applied()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository);
+        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
         var changes = new PendingChangeSet();
         changes.AddEntry(new HostEntry("10.0.0.1", "api.test"));
 
@@ -148,6 +148,62 @@ public class ApplyPendingChangesUseCaseTests
 
         changes.HasChanges.ShouldBeFalse();
         changes.Changes.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Refuses_to_write_pending_changes_when_the_process_is_not_elevated()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: false));
+        var changes = new PendingChangeSet();
+        changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Work");
+
+        Should.Throw<ElevationRequiredException>(() => useCase.Execute(changes));
+
+        repository.Operations.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Keeps_the_pending_changes_when_it_could_not_write_them_without_elevation()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: false));
+        var changes = new PendingChangeSet();
+        changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Work");
+
+        Should.Throw<ElevationRequiredException>(() => useCase.Execute(changes));
+
+        changes.HasChanges.ShouldBeTrue();
+        changes.Changes.ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public void Explains_that_administrator_rights_are_required_when_it_refuses_to_write()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: false));
+        var changes = new PendingChangeSet();
+        changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Work");
+
+        var exception = Should.Throw<ElevationRequiredException>(() => useCase.Execute(changes));
+
+        exception.Message.ShouldBe("Administrator rights are required to save changes to the hosts file.");
+    }
+
+    [Fact]
+    public void Applies_an_empty_set_without_requiring_elevation()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: false));
+
+        Should.NotThrow(() => useCase.Execute(new PendingChangeSet()));
+
+        repository.Operations.ShouldBeEmpty();
+    }
+
+    private sealed class FakeElevationService(bool isElevated) : IElevationService
+    {
+        public bool IsElevated { get; } = isElevated;
     }
 
     private sealed class RecordingHostsFileRepository : IHostsFileRepository

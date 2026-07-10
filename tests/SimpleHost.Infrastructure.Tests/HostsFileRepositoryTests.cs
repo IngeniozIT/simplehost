@@ -45,6 +45,28 @@ public sealed class HostsFileRepositoryTests : IDisposable
         });
     }
 
+    [Fact]
+    public void Reads_the_entries_grouped_by_category_from_the_file_on_disk()
+    {
+        File.WriteAllText(_path,
+            "127.0.0.1 localhost\n" +
+            "# [SimpleHost:Category] Development\n" +
+            "127.0.0.1 api.myapp.test\n" +
+            "# 127.0.0.1 staging.myapp.test\n");
+
+        var repository = new HostsFileRepository(_path, new HostsFileParser());
+
+        var groups = repository.GetGroupedEntries();
+
+        groups.Select(group => group.Name).ShouldBe(new string?[] { null, "Development" });
+        groups[0].Entries.ShouldBe(new[] { new HostEntry("127.0.0.1", "localhost") });
+        groups[1].Entries.ShouldBe(new[]
+        {
+            new HostEntry("127.0.0.1", "api.myapp.test", Status: HostEntryStatus.Active),
+            new HostEntry("127.0.0.1", "staging.myapp.test", Status: HostEntryStatus.Disabled),
+        });
+    }
+
     public void Dispose()
     {
         if (File.Exists(_path))

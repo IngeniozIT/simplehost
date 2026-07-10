@@ -1,4 +1,5 @@
 using System.Net;
+using SimpleHost.Domain.Categories;
 using SimpleHost.Domain.Entries;
 
 namespace SimpleHost.Infrastructure.Hosts;
@@ -51,6 +52,86 @@ public sealed class HostsFileParser
         }
 
         return entries;
+    }
+
+    /// <summary>
+    /// Parses every entry grouped by the category it belongs to. The first group is always the
+    /// "No category" group (<see cref="CategoryGroup.Name"/> is <c>null</c>) holding the entries
+    /// that appear before any marker; each subsequent group corresponds to a
+    /// <c># [SimpleHost:Category] &lt;Name&gt;</c> marker, in the order the markers appear, and
+    /// carries the entries below it (active and disabled alike) in file order. A marker with no
+    /// entries below it yields an empty but present group.
+    /// </summary>
+    public IReadOnlyList<CategoryGroup> ParseGroupedEntries(string content)
+    {
+        // The "No category" group is always present and always first; it collects entries that
+        // appear before any category marker.
+        var uncategorized = new List<HostEntry>();
+        var categories = new List<(string Name, List<HostEntry> Entries)>();
+        var current = uncategorized;
+
+        using var reader = new StringReader(content);
+
+        string? line;
+        while ((line = reader.ReadLine()) is not null)
+        {
+            if (TryParseCategoryMarker(line, out var name))
+            {
+                var entries = new List<HostEntry>();
+                categories.Add((name, entries));
+                current = entries;
+            }
+            else if (TryParseActiveLine(line, out var active))
+            {
+                current.Add(active);
+            }
+            else if (TryParseDisabledLine(line, out var disabled))
+            {
+                current.Add(disabled);
+            }
+        }
+
+        var groups = new List<CategoryGroup>(categories.Count + 1)
+        {
+            new CategoryGroup(null, uncategorized),
+        };
+        foreach (var (name, entries) in categories)
+        {
+            groups.Add(new CategoryGroup(name, entries));
+        }
+
+        return groups;
+    }
+
+    private const string CategoryMarkerPrefix = "[SimpleHost:Category]";
+
+    private static bool TryParseCategoryMarker(string line, out string name)
+    {
+        name = null!;
+
+        var trimmed = line.TrimStart();
+        if (trimmed.Length == 0 || trimmed[0] != '#')
+        {
+            return false;
+        }
+
+        // Skip the leading '#' (and any spacing after it), then require the category-marker tag.
+        var afterHash = trimmed[1..].TrimStart();
+        if (!afterHash.StartsWith(CategoryMarkerPrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        // Whatever follows the tag, trimmed, is the category name. A marker with no name is not
+        // a valid marker and is treated as a plain comment.
+        var candidate = afterHash[CategoryMarkerPrefix.Length..].Trim();
+        if (candidate.Length == 0)
+        {
+            return false;
+        }
+
+        name = candidate;
+        return true;
     }
 
     private static bool TryParseActiveLine(string line, out HostEntry entry)

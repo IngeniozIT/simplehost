@@ -1,6 +1,7 @@
 using Shouldly;
 using SimpleHost.Application.Ports;
 using SimpleHost.Application.UseCases.ViewEntries;
+using SimpleHost.Domain.Categories;
 using SimpleHost.Domain.Entries;
 
 namespace SimpleHost.Application.Tests;
@@ -50,5 +51,7 @@ public class ViewEntriesUseCaseTests
             => entries.Where(entry => entry.Status == HostEntryStatus.Active).ToList();
 
         public IReadOnlyList<HostEntry> GetEntries() => entries;
+
+        public IReadOnlyList<CategoryGroup> GetGroupedEntries() => throw new NotSupportedException();
     }
 }

@@ -1,4 +1,5 @@
 using SimpleHost.Application.Ports;
+using SimpleHost.Domain.Categories;
 using SimpleHost.Domain.Entries;
 
 namespace SimpleHost.Infrastructure.Hosts;
@@ -13,4 +14,7 @@ public sealed class HostsFileRepository(string filePath, HostsFileParser parser)
 
     public IReadOnlyList<HostEntry> GetEntries()
         => parser.ParseEntries(File.ReadAllText(filePath));
+
+    public IReadOnlyList<CategoryGroup> GetGroupedEntries()
+        => parser.ParseGroupedEntries(File.ReadAllText(filePath));
 }

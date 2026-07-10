@@ -1,3 +1,4 @@
+using SimpleHost.Domain.Categories;
 using SimpleHost.Domain.Entries;
 
 namespace SimpleHost.Application.Ports;
@@ -20,4 +21,13 @@ public interface IHostsFileRepository
     /// <see cref="HostEntry.Status"/>.
     /// </summary>
     IReadOnlyList<HostEntry> GetEntries();
+
+    /// <summary>
+    /// Returns the entries grouped by the category they belong to. The first group is always
+    /// the "No category" group (its <see cref="CategoryGroup.Name"/> is <c>null</c>), holding
+    /// the entries that appear before any <c># [SimpleHost:Category] &lt;Name&gt;</c> marker;
+    /// the remaining groups follow in the order their markers appear in the file, each carrying
+    /// its entries in file order.
+    /// </summary>
+    IReadOnlyList<CategoryGroup> GetGroupedEntries();
 }

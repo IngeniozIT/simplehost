@@ -65,6 +65,26 @@
 
         </StackPanel>
 
+        <!-- Category management and bulk actions. Creating a category stages an empty category; the
+             bulk buttons act on the current multi-selection through the view-model. -->
+        <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="New category:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBox x:Name="NewCategoryBox" Width="200" VerticalAlignment="Center" />
+                <Button Content="Create category"
+                        Margin="8,0,0,0"
+                        Padding="8,2"
+                        Click="OnCreateCategoryClick" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                <TextBlock Text="With selected:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <Button Content="Enable" Padding="8,2" Click="OnEnableSelectedClick" />
+                <Button Content="Disable" Margin="6,0,0,0" Padding="8,2" Click="OnDisableSelectedClick" />
+                <Button Content="Move to…" Margin="6,0,0,0" Padding="8,2" Click="OnMoveSelectedClick" />
+                <Button Content="Delete" Margin="6,0,0,0" Padding="8,2" Click="OnDeleteSelectedClick" />
+            </StackPanel>
+        </StackPanel>
+
         <!-- Add a new entry: the shared entry form bound to the view-model's new-entry draft, with
              its inline IP/hostname validation, and an Add button enabled only while the draft is valid. -->
         <Border DockPanel.Dock="Bottom"
@@ -96,22 +116,44 @@
                     <DataTemplate>
                         <StackPanel Margin="0,0,0,16">
 
-                            <!-- Category header. -->
+                            <!-- Category header: its name plus per-category actions. Dropping an entry
+                                 here moves it into this category. -->
                             <Border BorderBrush="{DynamicResource WindowForegroundBrush}"
                                     BorderThickness="0,0,0,1"
                                     Padding="0,0,0,4"
                                     Margin="0,0,0,4"
-                                    Opacity="0.85">
-                                <TextBlock Text="{Binding DisplayName}"
-                                           FontSize="15"
-                                           FontWeight="Bold" />
+                                    Opacity="0.85"
+                                    Background="Transparent"
+                                    AllowDrop="True"
+                                    DragOver="OnEntryDragOver"
+                                    Drop="OnCategoryDrop">
+                                <DockPanel>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Content="Enable all" Padding="6,1" Click="OnEnableCategoryClick" />
+                                        <Button Content="Disable all" Margin="6,0,0,0" Padding="6,1" Click="OnDisableCategoryClick" />
+                                        <Button x:Name="RenameCategoryButton"
+                                                Content="Rename" Margin="6,0,0,0" Padding="6,1" Click="OnRenameCategoryClick" />
+                                        <Button x:Name="DeleteCategoryButton"
+                                                Content="Delete" Margin="6,0,0,0" Padding="6,1" Click="OnDeleteCategoryClick" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               FontSize="15"
+                                               FontWeight="Bold"
+                                               VerticalAlignment="Center" />
+                                </DockPanel>
                             </Border>
 
                             <!-- Entries in this category. -->
                             <ItemsControl ItemsSource="{Binding Entries}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border x:Name="Row" Padding="2,3">
+                                        <Border x:Name="Row" Padding="2,3"
+                                                Background="Transparent"
+                                                AllowDrop="True"
+                                                PreviewMouseLeftButtonDown="OnRowMouseDown"
+                                                PreviewMouseMove="OnRowMouseMove"
+                                                DragOver="OnEntryDragOver"
+                                                Drop="OnRowDrop">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
@@ -121,13 +163,20 @@
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
 
-                                                <!-- Active-versus-disabled status dot. -->
-                                                <Ellipse x:Name="StatusDot"
-                                                         Grid.Column="0"
-                                                         Width="9"
-                                                         Height="9"
-                                                         Margin="0,0,10,0"
-                                                         VerticalAlignment="Center" />
+                                                <!-- Selection checkbox and active-versus-disabled status dot. -->
+                                                <StackPanel Grid.Column="0"
+                                                            Orientation="Horizontal"
+                                                            VerticalAlignment="Center">
+                                                    <CheckBox Margin="0,0,8,0"
+                                                              VerticalAlignment="Center"
+                                                              Checked="OnEntrySelected"
+                                                              Unchecked="OnEntryDeselected" />
+                                                    <Ellipse x:Name="StatusDot"
+                                                             Width="9"
+                                                             Height="9"
+                                                             Margin="0,0,10,0"
+                                                             VerticalAlignment="Center" />
+                                                </StackPanel>
 
                                                 <TextBlock x:Name="Ip"
                                                            Grid.Column="1"
@@ -149,15 +198,24 @@
                                                            TextTrimming="CharacterEllipsis"
                                                            VerticalAlignment="Center" />
 
-                                                <!-- Per-entry actions: edit opens the modal editor, delete stages a
-                                                     removal after the confirmation prompt supplied by the window. -->
+                                                <!-- Per-entry actions: toggle status, move to another category,
+                                                     edit through the modal editor, or delete after confirmation. -->
                                                 <StackPanel x:Name="RowActions"
                                                             Grid.Column="4"
                                                             Orientation="Horizontal"
                                                             Margin="12,0,0,0"
                                                             VerticalAlignment="Center">
+                                                    <Button x:Name="StatusToggle"
+                                                            Content="Disable"
+                                                            Padding="8,1"
+                                                            Click="OnToggleEntryStatusClick" />
+                                                    <Button Content="Move"
+                                                            Padding="8,1"
+                                                            Margin="6,0,0,0"
+                                                            Click="OnMoveEntryClick" />
                                                     <Button Content="Edit"
                                                             Padding="8,1"
+                                                            Margin="6,0,0,0"
                                                             Click="OnEditEntryClick" />
                                                     <Button Content="Delete"
                                                             Padding="8,1"
@@ -168,15 +226,17 @@
                                         </Border>
 
                                         <DataTemplate.Triggers>
-                                            <!-- Active: green dot, full-strength row. -->
+                                            <!-- Active: green dot, full-strength row, toggle offers to disable. -->
                                             <DataTrigger Binding="{Binding IsActive}" Value="True">
                                                 <Setter TargetName="StatusDot" Property="Fill" Value="#3FB950" />
+                                                <Setter TargetName="StatusToggle" Property="Content" Value="Disable" />
                                             </DataTrigger>
-                                            <!-- Disabled: grey dot, dimmed row, struck-through hostname. -->
+                                            <!-- Disabled: grey dot, dimmed row, struck-through hostname, toggle offers to enable. -->
                                             <DataTrigger Binding="{Binding IsActive}" Value="False">
                                                 <Setter TargetName="StatusDot" Property="Fill" Value="#6E7681" />
                                                 <Setter TargetName="Row" Property="Opacity" Value="0.5" />
                                                 <Setter TargetName="Host" Property="TextDecorations" Value="Strikethrough" />
+                                                <Setter TargetName="StatusToggle" Property="Content" Value="Enable" />
                                             </DataTrigger>
                                             <!-- Hide the comment column when the entry has no comment. -->
                                             <DataTrigger Binding="{Binding Comment}" Value="{x:Null}">
@@ -188,6 +248,14 @@
                             </ItemsControl>
 
                         </StackPanel>
+
+                        <DataTemplate.Triggers>
+                            <!-- The pinned "No category" group cannot be renamed or deleted. -->
+                            <DataTrigger Binding="{Binding IsUncategorized}" Value="True">
+                                <Setter TargetName="RenameCategoryButton" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="DeleteCategoryButton" Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

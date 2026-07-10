@@ -2,6 +2,8 @@ using System.Windows;
 using SimpleHost.Application.Appearance;
 using SimpleHost.Application.Tray;
 using SimpleHost.Infrastructure.Appearance;
+using SimpleHost.Presentation.Composition;
+using SimpleHost.Presentation.ViewModels;
 
 namespace SimpleHost.Presentation;
 
@@ -21,12 +23,21 @@ public partial class App : System.Windows.Application
     private SimpleHostTrayIcon? _trayIcon;
     private WindowsSystemThemeProvider? _themeProvider;
     private SystemThemeWatcher? _themeWatcher;
+    private CompositionRoot? _compositionRoot;
+    private MainViewModel? _mainViewModel;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
         StartFollowingSystemTheme();
+
+        // Resolve the hosts file from the command line (or environment), wire the whole object graph
+        // behind it, and load it so the main window opens showing real data. Pointing the app at a
+        // local sample file with --hosts-file needs no elevation; only the protected system file does.
+        _compositionRoot = new CompositionRoot();
+        _mainViewModel = _compositionRoot.BuildMainViewModel(e.Args);
+        _mainViewModel.Load();
 
         _trayIcon = new SimpleHostTrayIcon(new TrayMenuFactory().Create(), ShowMainWindow, Shutdown);
     }
@@ -36,6 +47,7 @@ public partial class App : System.Windows.Application
         _trayIcon?.Dispose();
         _themeWatcher?.Dispose();
         _themeProvider?.Dispose();
+        _compositionRoot?.Dispose();
         base.OnExit(e);
     }
 
@@ -54,7 +66,7 @@ public partial class App : System.Windows.Application
 
     private void ShowMainWindow()
     {
-        MainWindow ??= new MainWindow();
+        MainWindow ??= new MainWindow(_mainViewModel!);
         MainWindow.Show();
 
         if (MainWindow.WindowState == WindowState.Minimized)

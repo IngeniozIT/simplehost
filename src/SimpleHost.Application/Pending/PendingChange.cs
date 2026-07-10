@@ -22,15 +22,25 @@ public abstract record PendingChange
     internal abstract void ApplyTo(List<CategoryProjection> groups);
 
     /// <summary>
-    /// Records this change into <paramref name="changes"/>, coalescing it with the change immediately
-    /// before it when both act on the same entry so the set stays minimal — a later change that
-    /// supersedes the preceding one replaces it, and one that returns the entry to the state that
-    /// preceding change started from cancels it. The default simply appends; only kinds that can
-    /// supersede the preceding change override this. Ordering and the projected/written result are
-    /// preserved. Only the immediately preceding change is considered, so a change on another entry in
-    /// between keeps the two apart and never reorders unrelated edits.
+    /// Records this change into <paramref name="changes"/>, coalescing it with the nearest earlier
+    /// still-pending change on the same entry so the set stays minimal — a later change that supersedes
+    /// that one replaces it in place, and one that returns the entry to the state that earlier change
+    /// started from cancels it. The default simply appends; only kinds that can supersede an earlier
+    /// change override this. Ordering and the projected/written result are preserved: the search stops
+    /// at any intervening change that also acts on the same entry, so only changes on other entries are
+    /// crossed and unrelated edits are never reordered.
     /// </summary>
     internal virtual void CoalesceInto(List<PendingChange> changes) => changes.Add(this);
+
+    /// <summary>
+    /// Whether this change acts on <paramref name="entry"/> — references it as the entry it adds,
+    /// deletes, moves, or reorders. Coalescing an update walks earlier changes and stops at the first
+    /// one that also acts on the same entry, so a move, delete, reorder, or add on that entry is never
+    /// crossed. An earlier update on the same entry is handled by the coalesce match itself, not this
+    /// test, so <see cref="UpdateEntryChange"/> does not override it; category-level changes touch no
+    /// entry. Both therefore report <see langword="false"/>, which lets the walk cross them.
+    /// </summary>
+    internal virtual bool ActsOn(HostEntry entry) => false;
 
     /// <summary>
     /// Writes this change to the <c>hosts</c> file through <paramref name="repository"/>, calling the
@@ -102,6 +112,8 @@ public sealed record AddEntryChange(HostEntry Entry, string? Category) : Pending
 
     internal override void WriteTo(IHostsFileRepository repository)
         => repository.AddEntry(Entry, Category);
+
+    internal override bool ActsOn(HostEntry entry) => Entry == entry;
 }
 
 /// <summary>
@@ -183,23 +195,37 @@ public sealed record UpdateEntryChange(HostEntry Target, HostEntry Replacement) 
 
     internal override void CoalesceInto(List<PendingChange> changes)
     {
-        if (changes.Count > 0
-            && changes[^1] is UpdateEntryChange previous
-            && (previous.Replacement == Target || previous.Target == Target))
+        // Walk back to the nearest earlier still-pending change on this entry. Changes on other
+        // entries are crossed (they commute with an update here), but the walk stops at the first
+        // change that also acts on this entry so unrelated edits are never reordered. An earlier
+        // UpdateEntryChange that produced this update's target (its replacement matches, or it already
+        // targets the same entry) is the one to coalesce with; any other same-entry change — a move,
+        // delete, reorder, or add — breaks the chain and the update is simply appended.
+        for (var index = changes.Count - 1; index >= 0; index--)
         {
-            if (previous.Target == Replacement)
+            if (changes[index] is UpdateEntryChange previous
+                && (previous.Replacement == Target || previous.Target == Target))
             {
-                // The entry returns to the state the preceding update started from: the two cancel.
-                changes.RemoveAt(changes.Count - 1);
-            }
-            else
-            {
-                // Supersede the preceding update, keeping its original target so the net edit still
-                // resolves against the same on-disk (or earlier-staged) entry, in the same position.
-                changes[^1] = new UpdateEntryChange(previous.Target, Replacement);
+                if (previous.Target == Replacement)
+                {
+                    // The entry returns to the state that earlier update started from: the two cancel.
+                    changes.RemoveAt(index);
+                }
+                else
+                {
+                    // Supersede that earlier update in place, keeping its original target so the net
+                    // edit still resolves against the same on-disk (or earlier-staged) entry, and its
+                    // position so ordering is preserved.
+                    changes[index] = new UpdateEntryChange(previous.Target, Replacement);
+                }
+
+                return;
             }
 
-            return;
+            if (changes[index].ActsOn(Target))
+            {
+                break;
+            }
         }
 
         changes.Add(this);
@@ -220,6 +246,8 @@ public sealed record DeleteEntryChange(HostEntry Entry) : PendingChange
 
     internal override void WriteTo(IHostsFileRepository repository)
         => repository.DeleteEntry(Entry);
+
+    internal override bool ActsOn(HostEntry entry) => Entry == entry;
 }
 
 /// <summary>
@@ -244,6 +272,8 @@ public sealed record MoveEntryChange(HostEntry Entry, string? TargetCategory) : 
 
     internal override void WriteTo(IHostsFileRepository repository)
         => repository.MoveEntryToCategory(Entry, TargetCategory);
+
+    internal override bool ActsOn(HostEntry entry) => Entry == entry;
 }
 
 /// <summary>
@@ -268,4 +298,6 @@ public sealed record ReorderEntryChange(HostEntry Entry, int TargetIndex) : Pend
 
     internal override void WriteTo(IHostsFileRepository repository)
         => repository.ReorderEntry(Entry, TargetIndex);
+
+    internal override bool ActsOn(HostEntry entry) => Entry == entry;
 }

@@ -5,10 +5,12 @@ namespace SimpleHost.Application.Pending;
 
 /// <summary>
 /// The set of edits the user has made but not yet written to the <c>hosts</c> file, accumulated
-/// in the order they were made. Consecutive edits on the same entry are coalesced as they are
-/// recorded — a later edit supersedes the one immediately before it, and an edit that returns the
-/// entry to the state that preceding edit started from cancels it — so the count reflects the net
-/// effect. Nothing here touches the file: the set records intent, and <see cref="ApplyTo"/> projects
+/// in the order they were made. Edits on the same entry are coalesced as they are recorded, even
+/// when edits on other entries fall between them — a later edit supersedes the nearest earlier one
+/// on that entry, and an edit that returns the entry to the state that earlier edit started from
+/// cancels it — so the count reflects the net effect (a bulk enable/disable cycle that leaves the
+/// file unchanged collapses back to nothing). Nothing here touches the file: the set records intent,
+/// and <see cref="ApplyTo"/> projects
 /// that intent onto a snapshot of the current entries so the result can be previewed before any write
 /// happens.
 /// </summary>
@@ -107,9 +109,10 @@ public sealed class PendingChangeSet
 
     private void Record(PendingChange change)
     {
-        // Coalesce with any earlier change on the same entry so the count reflects the net effect:
-        // superseding replaces, returning to the original state cancels. Changed still fires on every
-        // record so a live count stays in sync even when the net effect removed a change.
+        // Coalesce with the nearest earlier change on the same entry — crossing intervening changes on
+        // other entries — so the count reflects the net effect: superseding replaces in place,
+        // returning to the original state cancels. Changed still fires on every record so a live count
+        // stays in sync even when the net effect removed a change.
         change.CoalesceInto(_changes);
         Changed?.Invoke(this, EventArgs.Empty);
     }

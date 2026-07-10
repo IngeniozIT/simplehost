@@ -500,6 +500,21 @@ public class PendingChangeSetTests
     }
 
     [Fact]
+    public void Skips_a_move_whose_entry_is_not_present()
+    {
+        var current = Grouping(
+            NoCategory(),
+            new CategoryGroup("Work", Array.Empty<HostEntry>()));
+        var changes = new PendingChangeSet();
+        changes.MoveEntry(new HostEntry("127.0.0.1", "web.test"), "Work");
+
+        var projected = changes.ApplyTo(current);
+
+        EntriesUnder(projected, null).ShouldBeEmpty();
+        EntriesUnder(projected, "Work").ShouldBeEmpty();
+    }
+
+    [Fact]
     public void Skips_a_move_whose_target_category_is_missing_without_dropping_the_entry()
     {
         var current = Grouping(NoCategory(new HostEntry("127.0.0.1", "web.test")));
@@ -620,7 +635,7 @@ public class PendingChangeSetTests
     }
 
     [Fact]
-    public void An_update_on_another_entry_between_two_updates_prevents_coalescing()
+    public void An_inverse_update_coalesces_across_an_update_on_another_entry()
     {
         var web = new HostEntry("127.0.0.1", "web.test");
         var webDisabled = web with { Status = HostEntryStatus.Disabled };
@@ -633,14 +648,75 @@ public class PendingChangeSetTests
         changes.UpdateEntry(api, apiDisabled);
         changes.UpdateEntry(webDisabled, web);
 
-        // Only the immediately preceding change is coalesced, so the non-adjacent inverse is kept; the
-        // net projection is still correct (web active again, api disabled).
-        changes.Changes.Count.ShouldBe(3);
+        // The intervening change is on another entry, so it is crossed and the inverse pair on web
+        // still cancels; only the api change is left, and the net projection is correct.
+        changes.Changes.ShouldHaveSingleItem()
+            .ShouldBeOfType<UpdateEntryChange>()
+            .Target.ShouldBe(api);
         EntriesUnder(changes.ApplyTo(current), null).ShouldBe(new[] { web, apiDisabled });
     }
 
     [Fact]
-    public void A_non_update_change_before_an_update_prevents_coalescing()
+    public void A_superseding_update_coalesces_across_an_update_on_another_entry_keeping_its_position()
+    {
+        var web = new HostEntry("127.0.0.1", "web.test");
+        var api = new HostEntry("10.0.0.1", "api.test");
+        var webRenamed = web with { IpAddress = "127.0.0.2" };
+        var webRenamedAgain = web with { IpAddress = "127.0.0.3" };
+        var apiRenamed = api with { IpAddress = "10.0.0.2" };
+        var current = Grouping(NoCategory(web, api));
+        var changes = new PendingChangeSet();
+
+        changes.UpdateEntry(web, webRenamed);
+        changes.UpdateEntry(api, apiRenamed);
+        changes.UpdateEntry(webRenamed, webRenamedAgain);
+
+        // The web update is superseded in place across the api update, keeping its original target and
+        // its leading position; the api update is untouched.
+        changes.Changes.Count.ShouldBe(2);
+        var first = changes.Changes[0].ShouldBeOfType<UpdateEntryChange>();
+        first.Target.ShouldBe(web);
+        first.Replacement.ShouldBe(webRenamedAgain);
+        changes.Changes[1].ShouldBeOfType<UpdateEntryChange>().Target.ShouldBe(api);
+        EntriesUnder(changes.ApplyTo(current), null).ShouldBe(new[] { webRenamedAgain, apiRenamed });
+    }
+
+    [Fact]
+    public void A_full_enable_disable_enable_cycle_across_a_category_nets_to_no_changes()
+    {
+        var web = new HostEntry("127.0.0.1", "web.test");
+        var api = new HostEntry("10.0.0.1", "api.test");
+        var webDisabled = web with { Status = HostEntryStatus.Disabled };
+        var apiDisabled = api with { Status = HostEntryStatus.Disabled };
+        var changes = new PendingChangeSet();
+
+        // Disable all: one update per entry, staged interleaved across the entries.
+        changes.UpdateEntry(web, webDisabled);
+        changes.UpdateEntry(api, apiDisabled);
+        // Enable all again: the inverse update per entry, again interleaved.
+        changes.UpdateEntry(webDisabled, web);
+        changes.UpdateEntry(apiDisabled, api);
+
+        changes.HasChanges.ShouldBeFalse();
+        changes.Changes.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Disabling_every_entry_once_stays_one_change_per_entry()
+    {
+        var web = new HostEntry("127.0.0.1", "web.test");
+        var api = new HostEntry("10.0.0.1", "api.test");
+        var changes = new PendingChangeSet();
+
+        changes.UpdateEntry(web, web with { Status = HostEntryStatus.Disabled });
+        changes.UpdateEntry(api, api with { Status = HostEntryStatus.Disabled });
+
+        // Different entries never falsely coalesce, so one update stays per disabled entry.
+        changes.Changes.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public void A_same_entry_move_between_two_updates_prevents_coalescing()
     {
         var current = Grouping(
             NoCategory(new HostEntry("127.0.0.1", "web.test")),
@@ -653,9 +729,124 @@ public class PendingChangeSetTests
         changes.MoveEntry(webDisabled, "Work");
         changes.UpdateEntry(webDisabled, web);
 
+        // The intervening move acts on the same entry, so it breaks the chain and the inverse update is
+        // kept rather than reordered across the move; the net projection is still correct.
         changes.Changes.Count.ShouldBe(3);
         EntriesUnder(changes.ApplyTo(current), "Work").ShouldHaveSingleItem().ShouldBe(web);
         EntriesUnder(changes.ApplyTo(current), null).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void An_inverse_update_coalesces_across_a_move_on_another_entry()
+    {
+        var web = new HostEntry("127.0.0.1", "web.test");
+        var webDisabled = web with { Status = HostEntryStatus.Disabled };
+        var api = new HostEntry("10.0.0.1", "api.test");
+        var changes = new PendingChangeSet();
+
+        changes.UpdateEntry(web, webDisabled);
+        changes.MoveEntry(api, "Work");
+        changes.UpdateEntry(webDisabled, web);
+
+        // The move is on another entry, so it is crossed and the web pair cancels; only the move stays.
+        changes.Changes.ShouldHaveSingleItem().ShouldBeOfType<MoveEntryChange>()
+            .Entry.ShouldBe(api);
+    }
+
+    [Fact]
+    public void A_same_entry_delete_between_two_updates_prevents_coalescing()
+    {
+        var web = new HostEntry("127.0.0.1", "web.test");
+        var webDisabled = web with { Status = HostEntryStatus.Disabled };
+        var changes = new PendingChangeSet();
+
+        changes.UpdateEntry(web, webDisabled);
+        changes.DeleteEntry(webDisabled);
+        changes.UpdateEntry(webDisabled, web);
+
+        // The delete acts on the same entry, so it breaks the chain and the inverse update is kept.
+        changes.Changes.Count.ShouldBe(3);
+    }
+
+    [Fact]
+    public void An_inverse_update_coalesces_across_a_delete_on_another_entry()
+    {
+        var web = new HostEntry("127.0.0.1", "web.test");
+        var webDisabled = web with { Status = HostEntryStatus.Disabled };
+        var api = new HostEntry("10.0.0.1", "api.test");
+        var changes = new PendingChangeSet();
+
+        changes.UpdateEntry(web, webDisabled);
+        changes.DeleteEntry(api);
+        changes.UpdateEntry(webDisabled, web);
+
+        // The delete is on another entry, so it is crossed and the web pair cancels.
+        changes.Changes.ShouldHaveSingleItem().ShouldBeOfType<DeleteEntryChange>()
+            .Entry.ShouldBe(api);
+    }
+
+    [Fact]
+    public void A_same_entry_reorder_between_two_updates_prevents_coalescing()
+    {
+        var web = new HostEntry("127.0.0.1", "web.test");
+        var webDisabled = web with { Status = HostEntryStatus.Disabled };
+        var changes = new PendingChangeSet();
+
+        changes.UpdateEntry(web, webDisabled);
+        changes.ReorderEntry(webDisabled, 0);
+        changes.UpdateEntry(webDisabled, web);
+
+        // The reorder acts on the same entry, so it breaks the chain and the inverse update is kept.
+        changes.Changes.Count.ShouldBe(3);
+    }
+
+    [Fact]
+    public void An_inverse_update_coalesces_across_a_reorder_on_another_entry()
+    {
+        var web = new HostEntry("127.0.0.1", "web.test");
+        var webDisabled = web with { Status = HostEntryStatus.Disabled };
+        var api = new HostEntry("10.0.0.1", "api.test");
+        var changes = new PendingChangeSet();
+
+        changes.UpdateEntry(web, webDisabled);
+        changes.ReorderEntry(api, 0);
+        changes.UpdateEntry(webDisabled, web);
+
+        // The reorder is on another entry, so it is crossed and the web pair cancels.
+        changes.Changes.ShouldHaveSingleItem().ShouldBeOfType<ReorderEntryChange>()
+            .Entry.ShouldBe(api);
+    }
+
+    [Fact]
+    public void A_same_entry_add_between_two_updates_prevents_coalescing()
+    {
+        var web = new HostEntry("127.0.0.1", "web.test");
+        var webDisabled = web with { Status = HostEntryStatus.Disabled };
+        var changes = new PendingChangeSet();
+
+        changes.UpdateEntry(web, webDisabled);
+        changes.AddEntry(webDisabled);
+        changes.UpdateEntry(webDisabled, web);
+
+        // The add references the same entry, so it breaks the chain and the inverse update is kept.
+        changes.Changes.Count.ShouldBe(3);
+    }
+
+    [Fact]
+    public void An_inverse_update_coalesces_across_an_add_of_another_entry()
+    {
+        var web = new HostEntry("127.0.0.1", "web.test");
+        var webDisabled = web with { Status = HostEntryStatus.Disabled };
+        var other = new HostEntry("10.0.0.9", "other.test");
+        var changes = new PendingChangeSet();
+
+        changes.UpdateEntry(web, webDisabled);
+        changes.AddEntry(other);
+        changes.UpdateEntry(webDisabled, web);
+
+        // The add is of another entry, so it is crossed and the web pair cancels.
+        changes.Changes.ShouldHaveSingleItem().ShouldBeOfType<AddEntryChange>()
+            .Entry.ShouldBe(other);
     }
 
     [Fact]

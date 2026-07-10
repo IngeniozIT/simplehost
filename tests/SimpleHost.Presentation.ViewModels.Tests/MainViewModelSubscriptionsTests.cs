@@ -6,7 +6,10 @@ using SimpleHost.Application.Pending;
 using SimpleHost.Application.Ports;
 using SimpleHost.Application.UseCases.ApplyPendingChanges;
 using SimpleHost.Application.UseCases.DiscardPendingChanges;
+using SimpleHost.Application.UseCases.ExportCategory;
+using SimpleHost.Application.UseCases.ExportConfiguration;
 using SimpleHost.Application.UseCases.FilterEntriesByCategory;
+using SimpleHost.Application.UseCases.ImportHostsFile;
 using SimpleHost.Application.UseCases.PreviewPendingChanges;
 using SimpleHost.Application.UseCases.RefreshSubscription;
 using SimpleHost.Application.UseCases.RefreshSubscriptions;
@@ -290,7 +293,24 @@ public class MainViewModelSubscriptionsTests
             new SubscribeToRemoteHostsListUseCase(fetcher, repository),
             new RefreshSubscriptionUseCase(fetcher, repository),
             new RefreshSubscriptionsUseCase(catalog ?? new FakeSubscriptionCatalog(), fetcher, repository),
+            new ExportCategoryUseCase(repository, new StubHostsFileExporter()),
+            new ExportConfigurationUseCase(repository, new StubHostsFileExporter()),
+            new ImportHostsFileUseCase(new StubHostsFileImporter(), repository),
             new PendingChangeSet());
+
+    private sealed class StubHostsFileExporter : IHostsFileExporter
+    {
+        public void ExportCategory(CategoryGroup group, string destinationPath)
+            => throw new NotSupportedException();
+
+        public void ExportConfiguration(IReadOnlyList<CategoryGroup> groups, string destinationPath)
+            => throw new NotSupportedException();
+    }
+
+    private sealed class StubHostsFileImporter : IHostsFileImporter
+    {
+        public IReadOnlyList<HostEntry> ImportEntries(string sourcePath) => throw new NotSupportedException();
+    }
 
     private sealed class FakeRemoteHostsListFetcher : IRemoteHostsListFetcher
     {

@@ -6,7 +6,10 @@ using System.Windows.Input;
 using SimpleHost.Application.Pending;
 using SimpleHost.Application.UseCases.ApplyPendingChanges;
 using SimpleHost.Application.UseCases.DiscardPendingChanges;
+using SimpleHost.Application.UseCases.ExportCategory;
+using SimpleHost.Application.UseCases.ExportConfiguration;
 using SimpleHost.Application.UseCases.FilterEntriesByCategory;
+using SimpleHost.Application.UseCases.ImportHostsFile;
 using SimpleHost.Application.UseCases.PreviewPendingChanges;
 using SimpleHost.Application.UseCases.RefreshSubscription;
 using SimpleHost.Application.UseCases.RefreshSubscriptions;
@@ -46,6 +49,9 @@ public sealed class MainViewModel : ViewModelBase
     private readonly SubscribeToRemoteHostsListUseCase _subscribeToRemoteList;
     private readonly RefreshSubscriptionUseCase _refreshSubscription;
     private readonly RefreshSubscriptionsUseCase _refreshSubscriptions;
+    private readonly ExportCategoryUseCase _exportCategory;
+    private readonly ExportConfigurationUseCase _exportConfiguration;
+    private readonly ImportHostsFileUseCase _importHostsFile;
     private readonly PendingChangeSet _pendingChanges;
     private readonly RelayCommand _applyCommand;
     private readonly RelayCommand _discardCommand;
@@ -73,6 +79,9 @@ public sealed class MainViewModel : ViewModelBase
         SubscribeToRemoteHostsListUseCase subscribeToRemoteList,
         RefreshSubscriptionUseCase refreshSubscription,
         RefreshSubscriptionsUseCase refreshSubscriptions,
+        ExportCategoryUseCase exportCategory,
+        ExportConfigurationUseCase exportConfiguration,
+        ImportHostsFileUseCase importHostsFile,
         PendingChangeSet pendingChanges)
     {
         _viewGroupedEntries = viewGroupedEntries;
@@ -88,6 +97,9 @@ public sealed class MainViewModel : ViewModelBase
         _subscribeToRemoteList = subscribeToRemoteList;
         _refreshSubscription = refreshSubscription;
         _refreshSubscriptions = refreshSubscriptions;
+        _exportCategory = exportCategory;
+        _exportConfiguration = exportConfiguration;
+        _importHostsFile = importHostsFile;
         _pendingChanges = pendingChanges;
         RefreshCommand = new RelayCommand(Refresh);
         _applyCommand = new RelayCommand(ApplyPendingChanges, () => HasPendingChanges);
@@ -265,6 +277,17 @@ public sealed class MainViewModel : ViewModelBase
     /// each subscription's failure into <see cref="SubscriptionRefreshResults"/> instead.
     /// </summary>
     public Action<string>? SubscriptionOperationFailed { get; set; }
+
+    /// <summary>
+    /// The callback the view supplies to be told, with a human-readable message, that an import or
+    /// export was refused: a blank destination or source path, or a category that does not exist
+    /// (when exporting a single category or importing into one). In every such case the use case
+    /// changes nothing — an export writes no file and an import stages no entries, since each
+    /// validates before it acts — the displayed state is left as it was, and this is invoked so the
+    /// view can report the problem. When left unset the refusal is simply swallowed, with nothing
+    /// changed.
+    /// </summary>
+    public Action<string>? ImportExportFailed { get; set; }
 
     /// <summary>The number of changes the user has staged but not yet written to the file.</summary>
     public int PendingChangeCount => _pendingChanges.Changes.Count;
@@ -832,6 +855,55 @@ public sealed class MainViewModel : ViewModelBase
         }
 
         Refresh();
+    }
+
+    /// <summary>
+    /// Exports the category named <paramref name="category"/> — or the "No category" group when it is
+    /// <c>null</c> — as a standalone <c>hosts</c> file at <paramref name="destinationPath"/> through
+    /// the export-category use case. Exporting only reads the managed file, so the displayed state is
+    /// unchanged. A blank destination or a category that does not exist writes nothing and is reported
+    /// through <see cref="ImportExportFailed"/>.
+    /// </summary>
+    public void ExportCategory(string? category, string destinationPath)
+        => TryRunImportExport(() => _exportCategory.Execute(category, destinationPath));
+
+    /// <summary>
+    /// Exports the whole configuration — every category and its entries — as a single standalone
+    /// <c>hosts</c> file at <paramref name="destinationPath"/> through the export-configuration use
+    /// case. Exporting only reads the managed file, so the displayed state is unchanged. A blank
+    /// destination writes nothing and is reported through <see cref="ImportExportFailed"/>.
+    /// </summary>
+    public void ExportConfiguration(string destinationPath)
+        => TryRunImportExport(() => _exportConfiguration.Execute(destinationPath));
+
+    /// <summary>
+    /// Imports the entries of the external <c>hosts</c> file at <paramref name="sourcePath"/> into the
+    /// category named <paramref name="category"/> — or the "No category" group when it is <c>null</c> —
+    /// through the import use case, then re-reads the file so the imported entries appear in the grouped
+    /// view. Because the use case validates before it reads the source, a blank source path or a
+    /// category that does not exist adds nothing; the displayed state is left untouched and the reason
+    /// is reported through <see cref="ImportExportFailed"/>.
+    /// </summary>
+    public void ImportEntries(string sourcePath, string? category)
+    {
+        if (TryRunImportExport(() => _importHostsFile.Execute(sourcePath, category)))
+        {
+            Refresh();
+        }
+    }
+
+    private bool TryRunImportExport(Action operation)
+    {
+        try
+        {
+            operation();
+            return true;
+        }
+        catch (Exception exception)
+        {
+            ImportExportFailed?.Invoke(exception.Message);
+            return false;
+        }
     }
 
     private IReadOnlyList<string?> CurrentlyEnabledCategories()

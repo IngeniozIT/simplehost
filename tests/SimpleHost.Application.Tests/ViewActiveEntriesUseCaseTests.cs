@@ -30,6 +30,18 @@ public class ViewActiveEntriesUseCaseTests
         useCase.Execute().ShouldBeEmpty();
     }
 
+    [Fact]
+    public void Surfaces_the_inline_comment_of_each_entry_for_display()
+    {
+        var repository = new FakeHostsFileRepository(
+            new HostEntry("127.0.0.1", "web.test", "local frontend"),
+            new HostEntry("0.0.0.0", "ads.example.com"));
+        var useCase = new ViewActiveEntriesUseCase(repository);
+
+        useCase.Execute().Select(entry => entry.Comment)
+            .ShouldBe(new[] { "local frontend", null });
+    }
+
     private sealed class FakeHostsFileRepository(params HostEntry[] entries) : IHostsFileRepository
     {
         public IReadOnlyList<HostEntry> GetActiveEntries() => entries;

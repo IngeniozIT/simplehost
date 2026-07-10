@@ -22,7 +22,7 @@ public sealed class HostsFileRepositoryTests : IDisposable
         repository.GetActiveEntries().ShouldBe(new[]
         {
             new HostEntry("127.0.0.1", "api.myapp.test"),
-            new HostEntry("0.0.0.0", "ads.example.com"),
+            new HostEntry("0.0.0.0", "ads.example.com", "blocked"),
         });
     }
 

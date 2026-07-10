@@ -86,12 +86,52 @@ public class HostsFileParserTests
     }
 
     [Fact]
-    public void Strips_a_trailing_inline_comment_from_an_active_entry()
+    public void Captures_a_trailing_inline_comment_on_an_active_entry()
     {
         var entries = _parser.ParseActiveEntries("127.0.0.1 web.myapp.test # local frontend");
 
         entries.ShouldHaveSingleItem()
-            .ShouldBe(new HostEntry("127.0.0.1", "web.myapp.test"));
+            .ShouldBe(new HostEntry("127.0.0.1", "web.myapp.test", "local frontend"));
+    }
+
+    [Fact]
+    public void An_active_entry_without_a_comment_has_no_comment()
+    {
+        var entries = _parser.ParseActiveEntries("127.0.0.1 localhost");
+
+        entries.ShouldHaveSingleItem().Comment.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Trims_whitespace_around_a_captured_inline_comment()
+    {
+        var entries = _parser.ParseActiveEntries("127.0.0.1 web.myapp.test #   local frontend   ");
+
+        entries.ShouldHaveSingleItem().Comment.ShouldBe("local frontend");
+    }
+
+    [Fact]
+    public void Treats_an_empty_inline_comment_as_no_comment()
+    {
+        var entries = _parser.ParseActiveEntries("127.0.0.1 web.myapp.test #");
+
+        entries.ShouldHaveSingleItem().Comment.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Treats_a_whitespace_only_inline_comment_as_no_comment()
+    {
+        var entries = _parser.ParseActiveEntries("127.0.0.1 web.myapp.test #    ");
+
+        entries.ShouldHaveSingleItem().Comment.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Keeps_further_hash_characters_inside_a_captured_comment()
+    {
+        var entries = _parser.ParseActiveEntries("127.0.0.1 web.myapp.test # see issue #42");
+
+        entries.ShouldHaveSingleItem().Comment.ShouldBe("see issue #42");
     }
 
     [Fact]

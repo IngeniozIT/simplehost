@@ -82,6 +82,41 @@ public sealed class HostsFileRepository(
         File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
     }
 
+    public void MoveEntryToCategory(HostEntry entry, string? targetCategory, int targetIndex)
+    {
+        BackupCurrentFile();
+        var lines = ReadContentLines(File.ReadAllText(filePath));
+
+        var from = FindEntryIndex(lines, entry);
+        var line = lines[from];
+        lines.RemoveAt(from);
+
+        var blockStart = targetCategory is null ? 0 : IndexAfterCategoryMarker(lines, targetCategory);
+        var blockEnd = FindCategoryBlockEnd(lines, blockStart);
+
+        var slots = new List<int>();
+        for (var i = blockStart; i < blockEnd; i++)
+        {
+            if (parser.TryParseEntry(lines[i], out _))
+            {
+                slots.Add(i);
+            }
+        }
+
+        if (targetIndex < 0 || targetIndex > slots.Count)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(targetIndex),
+                targetIndex,
+                $"Target position is outside the range 0 to {slots.Count} for the target category.");
+        }
+
+        var insertAt = targetIndex == slots.Count ? blockEnd : slots[targetIndex];
+        lines.Insert(insertAt, line);
+
+        File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
+    }
+
     public void ReorderEntry(HostEntry entry, int targetIndex)
     {
         BackupCurrentFile();

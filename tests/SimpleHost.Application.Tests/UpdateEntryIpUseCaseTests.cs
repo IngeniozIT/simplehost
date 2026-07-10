@@ -54,6 +54,9 @@ public class UpdateEntryIpUseCaseTests
 
     private sealed class RecordingHostsFileRepository : IHostsFileRepository
     {
+        public void MoveEntryToCategory(HostEntry entry, string? targetCategory, int targetIndex)
+            => throw new NotSupportedException();
+
         public void DeleteCategory(string name) => throw new NotSupportedException();
 
         public HostEntry? Target { get; private set; }

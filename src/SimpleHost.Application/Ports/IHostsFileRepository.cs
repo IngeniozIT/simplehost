@@ -83,6 +83,37 @@ public interface IHostsFileRepository
     void MoveEntryToCategory(HostEntry entry, string? targetCategory);
 
     /// <summary>
+    /// Moves the first entry that matches <paramref name="entry"/> into the target category's
+    /// <c># [SimpleHost:Category] &lt;Name&gt;</c> marker block — or, when
+    /// <paramref name="targetCategory"/> is <c>null</c>, into the "No category" region (before the
+    /// first marker) — inserting it at the zero-based drop position
+    /// <paramref name="targetIndex"/> among that block's entries, so both the entry's category
+    /// membership and its order are persisted purely by line order. This is the drag-and-drop move
+    /// of an entry from one category to another at a chosen position, as opposed to
+    /// <see cref="MoveEntryToCategory(HostEntry, string?)"/>, which always appends the entry as the
+    /// block's last line. The entry's own content (IP, hostname, inline comment, and
+    /// active/disabled status) is unchanged, and every other category and its entries — plus any
+    /// blank lines or plain comments interleaved within the target block — are left in place.
+    /// <paramref name="targetIndex"/> counts entries only — active and disabled (commented-out)
+    /// alike — in file order, starting at 0; the drop position is resolved against the target
+    /// block as it stands once the entry has been removed from its current location, so
+    /// <paramref name="targetIndex"/> equal to that block's entry count appends the entry as the
+    /// block's new last entry. Throws <see cref="InvalidOperationException"/> when no entry matches
+    /// or the named target category has no marker, and <see cref="ArgumentOutOfRangeException"/>
+    /// when <paramref name="targetIndex"/> falls outside the valid drop range.
+    /// </summary>
+    /// <param name="entry">The existing entry to move, as previously read from the file.</param>
+    /// <param name="targetCategory">
+    /// The name of an existing category to move the entry under, or <c>null</c> to move it into
+    /// "No category".
+    /// </param>
+    /// <param name="targetIndex">
+    /// The zero-based drop position the entry should occupy among the target category's entries
+    /// after the move.
+    /// </param>
+    void MoveEntryToCategory(HostEntry entry, string? targetCategory, int targetIndex);
+
+    /// <summary>
     /// Reorders the first entry that matches <paramref name="entry"/> to the zero-based position
     /// <paramref name="targetIndex"/> among the entries of the category block it already belongs to,
     /// rewriting that block's entry lines in the new order so the change is persisted purely by line

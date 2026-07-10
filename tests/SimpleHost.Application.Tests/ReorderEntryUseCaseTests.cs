@@ -43,6 +43,9 @@ public class ReorderEntryUseCaseTests
 
     private sealed class RecordingHostsFileRepository : IHostsFileRepository
     {
+        public void MoveEntryToCategory(HostEntry entry, string? targetCategory, int targetIndex)
+            => throw new NotSupportedException();
+
         public HostEntry? ReorderedEntry { get; private set; }
 
         public int? TargetIndex { get; private set; }

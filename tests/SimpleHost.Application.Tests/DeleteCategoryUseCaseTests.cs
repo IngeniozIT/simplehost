@@ -54,6 +54,9 @@ public class DeleteCategoryUseCaseTests
 
     private sealed class RecordingHostsFileRepository : IHostsFileRepository
     {
+        public void MoveEntryToCategory(HostEntry entry, string? targetCategory, int targetIndex)
+            => throw new NotSupportedException();
+
         private readonly List<string> _deletedCategories = new();
 
         public IReadOnlyList<string> DeletedCategories => _deletedCategories;

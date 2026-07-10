@@ -11,11 +11,18 @@ public sealed class AddEntryUseCase(IHostsFileRepository repository)
 {
     /// <summary>
     /// Creates an active entry mapping <paramref name="hostname"/> to
-    /// <paramref name="ipAddress"/>, stores it, and returns the created entry.
+    /// <paramref name="ipAddress"/>, optionally carrying <paramref name="comment"/> as its
+    /// trailing inline comment, stores it, and returns the created entry.
     /// </summary>
-    public HostEntry Execute(string ipAddress, string hostname)
+    /// <param name="ipAddress">The IP address the hostname resolves to.</param>
+    /// <param name="hostname">The hostname being mapped.</param>
+    /// <param name="comment">
+    /// An optional trailing inline comment to note what the entry is for, or <c>null</c> to
+    /// create the entry without a comment.
+    /// </param>
+    public HostEntry Execute(string ipAddress, string hostname, string? comment = null)
     {
-        var entry = new HostEntry(ipAddress, hostname);
+        var entry = new HostEntry(ipAddress, hostname, comment);
         repository.AddEntry(entry);
         return entry;
     }

@@ -50,6 +50,38 @@ public class AddEntryUseCaseTests
         repository.GetEntries().ShouldContain(new HostEntry("10.0.0.1", "api.myapp.test"));
     }
 
+    [Fact]
+    public void Attaches_the_supplied_comment_to_the_added_entry()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var useCase = new AddEntryUseCase(repository);
+
+        useCase.Execute("0.0.0.0", "ads.example.com", "blocked ad server");
+
+        repository.Entries.ShouldBe(
+            new[] { new HostEntry("0.0.0.0", "ads.example.com", "blocked ad server") });
+    }
+
+    [Fact]
+    public void Returns_the_created_entry_carrying_its_comment()
+    {
+        var useCase = new AddEntryUseCase(new RecordingHostsFileRepository());
+
+        useCase.Execute("0.0.0.0", "ads.example.com", "blocked ad server")
+            .ShouldBe(new HostEntry("0.0.0.0", "ads.example.com", "blocked ad server"));
+    }
+
+    [Fact]
+    public void Leaves_the_entry_without_a_comment_when_none_is_supplied()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var useCase = new AddEntryUseCase(repository);
+
+        useCase.Execute("127.0.0.1", "web.myapp.test");
+
+        repository.Entries.Single().Comment.ShouldBeNull();
+    }
+
     private sealed class RecordingHostsFileRepository : IHostsFileRepository
     {
         private readonly List<HostEntry> _entries = new();

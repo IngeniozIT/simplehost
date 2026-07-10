@@ -36,6 +36,13 @@ public sealed class PendingChangeSet
         => _changes.Add(new MoveEntryChange(entry, targetCategory));
 
     /// <summary>
+    /// Discards every accumulated change, leaving the set empty and <see cref="HasChanges"/>
+    /// <see langword="false"/> again. Used once the changes have been written to the file so they
+    /// are no longer pending.
+    /// </summary>
+    public void Clear() => _changes.Clear();
+
+    /// <summary>
     /// Projects the accumulated changes onto <paramref name="current"/> and returns the resulting
     /// grouped entries — what the file would hold once the changes are applied — without mutating
     /// the input or writing anything. Applying an empty set returns the current grouping unchanged.

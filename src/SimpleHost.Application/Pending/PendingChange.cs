@@ -1,3 +1,4 @@
+using SimpleHost.Application.Ports;
 using SimpleHost.Domain.Entries;
 
 namespace SimpleHost.Application.Pending;
@@ -18,6 +19,13 @@ public abstract record PendingChange
 
     /// <summary>Applies this change in place to the working projection of the grouped entries.</summary>
     internal abstract void ApplyTo(List<CategoryProjection> groups);
+
+    /// <summary>
+    /// Writes this change to the <c>hosts</c> file through <paramref name="repository"/>, calling the
+    /// matching repository operation so the on-disk file ends up as the preview projected. Mirrors
+    /// <see cref="ApplyTo"/>: the projection predicts what this write performs.
+    /// </summary>
+    internal abstract void WriteTo(IHostsFileRepository repository);
 
     /// <summary>
     /// Returns the category the entry belongs in — the group whose name matches
@@ -59,6 +67,9 @@ public sealed record AddEntryChange(HostEntry Entry, string? Category) : Pending
 {
     internal override void ApplyTo(List<CategoryProjection> groups)
         => GroupFor(groups, Category).Entries.Add(Entry);
+
+    internal override void WriteTo(IHostsFileRepository repository)
+        => repository.AddEntry(Entry, Category);
 }
 
 /// <summary>
@@ -74,6 +85,9 @@ public sealed record UpdateEntryChange(HostEntry Target, HostEntry Replacement) 
         var (group, index) = Locate(groups, Target);
         group.Entries[index] = Replacement;
     }
+
+    internal override void WriteTo(IHostsFileRepository repository)
+        => repository.UpdateEntry(Target, Replacement);
 }
 
 /// <summary>A pending deletion of an existing entry, removing it from its category.</summary>
@@ -85,6 +99,9 @@ public sealed record DeleteEntryChange(HostEntry Entry) : PendingChange
         var (group, index) = Locate(groups, Entry);
         group.Entries.RemoveAt(index);
     }
+
+    internal override void WriteTo(IHostsFileRepository repository)
+        => repository.DeleteEntry(Entry);
 }
 
 /// <summary>
@@ -101,4 +118,7 @@ public sealed record MoveEntryChange(HostEntry Entry, string? TargetCategory) : 
         group.Entries.RemoveAt(index);
         GroupFor(groups, TargetCategory).Entries.Add(Entry);
     }
+
+    internal override void WriteTo(IHostsFileRepository repository)
+        => repository.MoveEntryToCategory(Entry, TargetCategory);
 }

@@ -189,4 +189,138 @@ public class HostsFileParserTests
     {
         Should.Throw<ArgumentNullException>(() => _parser.ParseActiveEntries(null!));
     }
+
+    [Fact]
+    public void Parsing_all_entries_marks_an_uncommented_entry_as_active()
+    {
+        var entries = _parser.ParseEntries("127.0.0.1 localhost");
+
+        entries.ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("127.0.0.1", "localhost", Status: HostEntryStatus.Active));
+    }
+
+    [Fact]
+    public void Parsing_all_entries_reads_a_disabled_entry_marked_disabled()
+    {
+        var entries = _parser.ParseEntries("# 127.0.0.1 staging.myapp.test");
+
+        entries.ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("127.0.0.1", "staging.myapp.test", Status: HostEntryStatus.Disabled));
+    }
+
+    [Fact]
+    public void Reads_a_disabled_entry_with_no_space_after_the_hash()
+    {
+        var entries = _parser.ParseEntries("#127.0.0.1 staging.myapp.test");
+
+        entries.ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("127.0.0.1", "staging.myapp.test", Status: HostEntryStatus.Disabled));
+    }
+
+    [Fact]
+    public void Reads_a_disabled_entry_with_extra_whitespace_before_the_hash()
+    {
+        var entries = _parser.ParseEntries("\t  # 127.0.0.1 staging.myapp.test");
+
+        entries.ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("127.0.0.1", "staging.myapp.test", Status: HostEntryStatus.Disabled));
+    }
+
+    [Fact]
+    public void Captures_the_inline_comment_on_a_disabled_entry()
+    {
+        var entries = _parser.ParseEntries("# 127.0.0.1 staging.myapp.test # was flaky");
+
+        entries.ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("127.0.0.1", "staging.myapp.test", "was flaky", HostEntryStatus.Disabled));
+    }
+
+    [Fact]
+    public void Keeps_active_and_disabled_entries_together_in_file_order()
+    {
+        var content =
+            "127.0.0.1 web.myapp.test\n" +
+            "# 127.0.0.1 staging.myapp.test\n" +
+            "0.0.0.0 ads.example.com";
+
+        var entries = _parser.ParseEntries(content);
+
+        entries.ShouldBe(new[]
+        {
+            new HostEntry("127.0.0.1", "web.myapp.test", Status: HostEntryStatus.Active),
+            new HostEntry("127.0.0.1", "staging.myapp.test", Status: HostEntryStatus.Disabled),
+            new HostEntry("0.0.0.0", "ads.example.com", Status: HostEntryStatus.Active),
+        });
+    }
+
+    [Fact]
+    public void Does_not_treat_a_category_marker_as_a_disabled_entry()
+    {
+        var content = "# [SimpleHost:Category] Development\n127.0.0.1 api.myapp.test";
+
+        var entries = _parser.ParseEntries(content);
+
+        entries.ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("127.0.0.1", "api.myapp.test", Status: HostEntryStatus.Active));
+    }
+
+    [Fact]
+    public void Does_not_treat_a_plain_comment_as_a_disabled_entry()
+    {
+        var content = "# just a note here\n127.0.0.1 api.myapp.test";
+
+        var entries = _parser.ParseEntries(content);
+
+        entries.ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("127.0.0.1", "api.myapp.test", Status: HostEntryStatus.Active));
+    }
+
+    [Fact]
+    public void Does_not_treat_a_commented_line_whose_first_token_is_not_an_ip_as_disabled()
+    {
+        _parser.ParseEntries("# notanip somehost").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Does_not_treat_a_commented_line_without_a_hostname_as_a_disabled_entry()
+    {
+        _parser.ParseEntries("# 127.0.0.1").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Does_not_treat_a_double_commented_line_as_a_disabled_entry()
+    {
+        _parser.ParseEntries("## 127.0.0.1 staging.myapp.test").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Ignores_blank_lines_when_parsing_all_entries()
+    {
+        var content = "\n   \n127.0.0.1 web.myapp.test\n\t\n# 0.0.0.0 ads.example.com\n";
+
+        var entries = _parser.ParseEntries(content);
+
+        entries.ShouldBe(new[]
+        {
+            new HostEntry("127.0.0.1", "web.myapp.test", Status: HostEntryStatus.Active),
+            new HostEntry("0.0.0.0", "ads.example.com", Status: HostEntryStatus.Disabled),
+        });
+    }
+
+    [Fact]
+    public void Ignores_a_bare_ip_line_with_no_hostname_when_parsing_all_entries()
+    {
+        var content = "127.0.0.1\n0.0.0.0 web.myapp.test";
+
+        var entries = _parser.ParseEntries(content);
+
+        entries.ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("0.0.0.0", "web.myapp.test", Status: HostEntryStatus.Active));
+    }
+
+    [Fact]
+    public void Parsing_all_entries_rejects_null_content()
+    {
+        Should.Throw<ArgumentNullException>(() => _parser.ParseEntries(null!));
+    }
 }

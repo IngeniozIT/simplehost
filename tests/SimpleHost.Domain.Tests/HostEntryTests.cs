@@ -23,6 +23,31 @@ public class HostEntryTests
     }
 
     [Fact]
+    public void Is_active_by_default()
+    {
+        var entry = new HostEntry("127.0.0.1", "localhost");
+
+        entry.Status.ShouldBe(HostEntryStatus.Active);
+    }
+
+    [Fact]
+    public void Exposes_the_status_it_was_created_with()
+    {
+        var entry = new HostEntry("127.0.0.1", "staging.test", Status: HostEntryStatus.Disabled);
+
+        entry.Status.ShouldBe(HostEntryStatus.Disabled);
+    }
+
+    [Fact]
+    public void An_active_entry_is_not_equal_to_the_same_entry_when_disabled()
+    {
+        var active = new HostEntry("127.0.0.1", "web.test");
+        var disabled = new HostEntry("127.0.0.1", "web.test", Status: HostEntryStatus.Disabled);
+
+        active.ShouldNotBe(disabled);
+    }
+
+    [Fact]
     public void Has_no_comment_by_default()
     {
         var entry = new HostEntry("127.0.0.1", "localhost");

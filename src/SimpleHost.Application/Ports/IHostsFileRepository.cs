@@ -13,4 +13,11 @@ public interface IHostsFileRepository
     /// in the order they appear.
     /// </summary>
     IReadOnlyList<HostEntry> GetActiveEntries();
+
+    /// <summary>
+    /// Returns every entry currently in the <c>hosts</c> file — active and disabled
+    /// (commented-out) alike — in the order they appear, each carrying its
+    /// <see cref="HostEntry.Status"/>.
+    /// </summary>
+    IReadOnlyList<HostEntry> GetEntries();
 }

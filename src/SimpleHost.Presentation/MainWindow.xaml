@@ -215,6 +215,18 @@
             <Button Content="Export all…" Margin="6,0,0,0" Padding="8,2" Click="OnExportConfigurationClick" />
         </StackPanel>
 
+        <!-- Settings: the flush-DNS-after-saving toggle. When on, a successful apply that actually wrote
+             changes is followed by a flush of the system DNS cache so name lookups pick up the change at
+             once. Bound two-way to the view-model's setting, which is off by default. -->
+        <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0" Orientation="Horizontal">
+            <TextBlock Text="Settings:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <CheckBox x:Name="FlushDnsCheckBox"
+                      VerticalAlignment="Center"
+                      Content="Flush the DNS cache after saving"
+                      IsChecked="{Binding FlushDnsAfterSaving}"
+                      ToolTip="After a successful save that wrote changes, flush the system DNS cache so lookups pick up the change immediately" />
+        </StackPanel>
+
         <!-- Add a new entry: the shared entry form bound to the view-model's new-entry draft, with
              its inline IP/hostname validation, and an Add button enabled only while the draft is valid. -->
         <Border DockPanel.Dock="Bottom"

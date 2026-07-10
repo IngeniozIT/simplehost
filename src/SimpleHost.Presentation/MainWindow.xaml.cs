@@ -15,8 +15,9 @@ namespace SimpleHost.Presentation;
 /// entries can be enabled, disabled, deleted or moved at once. The current set of enabled categories
 /// can be saved as a named profile and a saved profile switched back to. Remote subscriptions can be
 /// added and refreshed, and external hosts files imported into a category or exported (a single
-/// category or the whole configuration). Every action drives the <see cref="MainViewModel"/>'s
-/// commands; nothing is written to the file until the pending changes are applied.
+/// category or the whole configuration). A settings area exposes the flush-DNS-after-saving toggle.
+/// Every action drives the <see cref="MainViewModel"/>'s commands; nothing is written to the file
+/// until the pending changes are applied.
 /// </summary>
 public partial class MainWindow : Window
 {

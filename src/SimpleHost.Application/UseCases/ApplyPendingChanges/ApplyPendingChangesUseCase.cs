@@ -49,7 +49,16 @@ public sealed class ApplyPendingChangesUseCase(
 
         foreach (var change in pendingChanges.Changes)
         {
-            change.WriteTo(repository);
+            try
+            {
+                change.WriteTo(repository);
+            }
+            catch (InvalidOperationException)
+            {
+                // A stale change whose target an earlier change already removed can no longer be
+                // located on disk. The projection previewed the same change as a no-op, so skip it
+                // here too: apply stays consistent with the preview and never crashes mid-write.
+            }
         }
 
         pendingChanges.Clear();

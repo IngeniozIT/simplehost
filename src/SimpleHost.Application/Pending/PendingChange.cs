@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using SimpleHost.Application.Ports;
 using SimpleHost.Domain.Entries;
 
@@ -39,32 +40,47 @@ public abstract record PendingChange
     internal abstract void WriteTo(IHostsFileRepository repository);
 
     /// <summary>
-    /// Returns the category the entry belongs in — the group whose name matches
-    /// <paramref name="category"/>, or the "No category" group when it is <c>null</c>. Throws when a
-    /// named category has no marker, exactly as adding to a missing category would fail on disk.
+    /// Finds the category the entry belongs in — the group whose name matches
+    /// <paramref name="category"/>, or the "No category" group when it is <c>null</c> — reporting
+    /// through the return value whether it exists. A change projects itself only when its category is
+    /// present, so a stale change against a category that is no longer there is skipped rather than
+    /// throwing, keeping the projection (and so the preview) from crashing.
     /// </summary>
-    private protected static CategoryProjection GroupFor(List<CategoryProjection> groups, string? category)
-        => groups.FirstOrDefault(group => group.Name == category)
-            ?? throw new InvalidOperationException($"No category marker found for '{category}'.");
+    private protected static bool TryGroupFor(
+        List<CategoryProjection> groups, string? category, [NotNullWhen(true)] out CategoryProjection? group)
+    {
+        group = groups.FirstOrDefault(candidate => candidate.Name == category);
+        return group is not null;
+    }
 
     /// <summary>
     /// Locates the first entry across the groups, in file order, that equals
-    /// <paramref name="target"/>, returning its group and position. Throws when no entry matches,
-    /// exactly as editing a missing entry would fail on disk.
+    /// <paramref name="target"/>, reporting through the return value whether it was found and, when it
+    /// was, its group and position. A change projects itself only when its target is still present, so
+    /// a stale change whose target an earlier change already replaced or removed is skipped rather than
+    /// throwing.
     /// </summary>
-    private protected static (CategoryProjection Group, int Index) Locate(
-        List<CategoryProjection> groups, HostEntry target)
+    private protected static bool TryLocate(
+        List<CategoryProjection> groups,
+        HostEntry target,
+        [NotNullWhen(true)] out CategoryProjection? group,
+        out int index)
     {
-        foreach (var group in groups)
+        foreach (var candidate in groups)
         {
-            var index = group.Entries.IndexOf(target);
-            if (index >= 0)
+            var found = candidate.Entries.IndexOf(target);
+            if (found >= 0)
             {
-                return (group, index);
+                group = candidate;
+                index = found;
+                return true;
             }
         }
 
-        throw new InvalidOperationException($"No entry found matching '{target}'.");
+        // No match: callers read index only when this returns true, so it just needs a definite value.
+        group = null;
+        index = 0;
+        return false;
     }
 }
 
@@ -77,7 +93,12 @@ public abstract record PendingChange
 public sealed record AddEntryChange(HostEntry Entry, string? Category) : PendingChange
 {
     internal override void ApplyTo(List<CategoryProjection> groups)
-        => GroupFor(groups, Category).Entries.Add(Entry);
+    {
+        if (TryGroupFor(groups, Category, out var group))
+        {
+            group.Entries.Add(Entry);
+        }
+    }
 
     internal override void WriteTo(IHostsFileRepository repository)
         => repository.AddEntry(Entry, Category);
@@ -108,7 +129,12 @@ public sealed record CreateCategoryChange(string Name) : PendingChange
 public sealed record RenameCategoryChange(string CurrentName, string NewName) : PendingChange
 {
     internal override void ApplyTo(List<CategoryProjection> groups)
-        => GroupFor(groups, CurrentName).Name = NewName;
+    {
+        if (TryGroupFor(groups, CurrentName, out var group))
+        {
+            group.Name = NewName;
+        }
+    }
 
     internal override void WriteTo(IHostsFileRepository repository)
         => repository.RenameCategory(CurrentName, NewName);
@@ -125,9 +151,11 @@ public sealed record DeleteCategoryChange(string Name) : PendingChange
 {
     internal override void ApplyTo(List<CategoryProjection> groups)
     {
-        var category = GroupFor(groups, Name);
-        GroupFor(groups, null).Entries.AddRange(category.Entries);
-        groups.Remove(category);
+        if (TryGroupFor(groups, Name, out var category) && TryGroupFor(groups, null, out var noCategory))
+        {
+            noCategory.Entries.AddRange(category.Entries);
+            groups.Remove(category);
+        }
     }
 
     internal override void WriteTo(IHostsFileRepository repository)
@@ -144,8 +172,10 @@ public sealed record UpdateEntryChange(HostEntry Target, HostEntry Replacement) 
 {
     internal override void ApplyTo(List<CategoryProjection> groups)
     {
-        var (group, index) = Locate(groups, Target);
-        group.Entries[index] = Replacement;
+        if (TryLocate(groups, Target, out var group, out var index))
+        {
+            group.Entries[index] = Replacement;
+        }
     }
 
     internal override void WriteTo(IHostsFileRepository repository)
@@ -182,13 +212,14 @@ public sealed record DeleteEntryChange(HostEntry Entry) : PendingChange
 {
     internal override void ApplyTo(List<CategoryProjection> groups)
     {
-        var (group, index) = Locate(groups, Entry);
-        group.Entries.RemoveAt(index);
+        if (TryLocate(groups, Entry, out var group, out var index))
+        {
+            group.Entries.RemoveAt(index);
+        }
     }
 
     internal override void WriteTo(IHostsFileRepository repository)
         => repository.DeleteEntry(Entry);
-
 }
 
 /// <summary>
@@ -201,14 +232,18 @@ public sealed record MoveEntryChange(HostEntry Entry, string? TargetCategory) : 
 {
     internal override void ApplyTo(List<CategoryProjection> groups)
     {
-        var (group, index) = Locate(groups, Entry);
-        group.Entries.RemoveAt(index);
-        GroupFor(groups, TargetCategory).Entries.Add(Entry);
+        // Resolve both the source entry and the destination category before mutating, so a stale move
+        // whose entry or target category is gone is skipped whole rather than half-applied.
+        if (TryLocate(groups, Entry, out var group, out var index)
+            && TryGroupFor(groups, TargetCategory, out var target))
+        {
+            group.Entries.RemoveAt(index);
+            target.Entries.Add(Entry);
+        }
     }
 
     internal override void WriteTo(IHostsFileRepository repository)
         => repository.MoveEntryToCategory(Entry, TargetCategory);
-
 }
 
 /// <summary>
@@ -224,12 +259,13 @@ public sealed record ReorderEntryChange(HostEntry Entry, int TargetIndex) : Pend
 {
     internal override void ApplyTo(List<CategoryProjection> groups)
     {
-        var (group, index) = Locate(groups, Entry);
-        group.Entries.RemoveAt(index);
-        group.Entries.Insert(TargetIndex, Entry);
+        if (TryLocate(groups, Entry, out var group, out var index))
+        {
+            group.Entries.RemoveAt(index);
+            group.Entries.Insert(TargetIndex, Entry);
+        }
     }
 
     internal override void WriteTo(IHostsFileRepository repository)
         => repository.ReorderEntry(Entry, TargetIndex);
-
 }

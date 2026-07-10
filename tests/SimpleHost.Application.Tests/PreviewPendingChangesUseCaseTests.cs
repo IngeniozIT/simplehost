@@ -77,6 +77,37 @@ public class PreviewPendingChangesUseCaseTests
         repository.GroupedReads.ShouldBe(1);
     }
 
+    [Fact]
+    public void Does_not_throw_when_a_pending_change_targets_an_entry_an_earlier_change_removed()
+    {
+        var repository = new StubHostsFileRepository(
+            new CategoryGroup(null, new[]
+            {
+                new HostEntry("127.0.0.1", "web.test"),
+                new HostEntry("10.0.0.1", "api.test"),
+            }));
+        var useCase = new PreviewPendingChangesUseCase(repository);
+        var changes = new PendingChangeSet();
+        changes.DeleteEntry(new HostEntry("127.0.0.1", "web.test"));
+        changes.UpdateEntry(
+            new HostEntry("127.0.0.1", "web.test"),
+            new HostEntry("127.0.0.1", "web.test", null, HostEntryStatus.Disabled));
+
+        var diff = Should.NotThrow(() => useCase.Execute(changes));
+
+        // The stale update is skipped, so the preview shows only the deletion — consistent with what
+        // applying the same changes writes (the update can no longer be located and is skipped there too).
+        diff.Lines.ShouldBe(new[]
+        {
+            new HostsFileDiffLine(
+                HostsFileDiffLineKind.Removed,
+                new HostEntryPlacement(null, new HostEntry("127.0.0.1", "web.test"))),
+            new HostsFileDiffLine(
+                HostsFileDiffLineKind.Unchanged,
+                new HostEntryPlacement(null, new HostEntry("10.0.0.1", "api.test"))),
+        });
+    }
+
     private sealed class StubHostsFileRepository(params CategoryGroup[] groups) : IHostsFileRepository
     {
         public void MoveEntryToCategory(HostEntry entry, string? targetCategory, int targetIndex)

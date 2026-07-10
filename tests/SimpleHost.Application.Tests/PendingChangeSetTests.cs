@@ -246,13 +246,14 @@ public class PendingChangeSetTests
     }
 
     [Fact]
-    public void Throws_when_reordering_an_entry_that_is_not_present()
+    public void Skips_reordering_an_entry_that_is_not_present()
     {
         var changes = new PendingChangeSet();
         changes.ReorderEntry(new HostEntry("127.0.0.1", "web.test"), 0);
 
-        Should.Throw<InvalidOperationException>(() => changes.ApplyTo(Grouping(NoCategory())))
-            .Message.ShouldContain("No entry found matching");
+        var projected = changes.ApplyTo(Grouping(NoCategory()));
+
+        EntriesUnder(projected, null).ShouldBeEmpty();
     }
 
     [Fact]
@@ -320,25 +321,28 @@ public class PendingChangeSetTests
     }
 
     [Fact]
-    public void Throws_when_adding_under_a_category_that_has_no_marker()
+    public void Skips_adding_under_a_category_that_has_no_marker()
     {
         var changes = new PendingChangeSet();
         changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Missing");
 
-        Should.Throw<InvalidOperationException>(() => changes.ApplyTo(Grouping(NoCategory())))
-            .Message.ShouldContain("No category marker found for 'Missing'.");
+        var projected = changes.ApplyTo(Grouping(NoCategory()));
+
+        projected.Select(group => group.Name).ShouldBe(new string?[] { null });
+        EntriesUnder(projected, null).ShouldBeEmpty();
     }
 
     [Fact]
-    public void Throws_when_updating_an_entry_that_is_not_present()
+    public void Skips_updating_an_entry_that_is_not_present()
     {
         var changes = new PendingChangeSet();
         changes.UpdateEntry(
             new HostEntry("127.0.0.1", "web.test"),
             new HostEntry("192.168.0.1", "web.test"));
 
-        Should.Throw<InvalidOperationException>(() => changes.ApplyTo(Grouping(NoCategory())))
-            .Message.ShouldContain("No entry found matching");
+        var projected = changes.ApplyTo(Grouping(NoCategory()));
+
+        EntriesUnder(projected, null).ShouldBeEmpty();
     }
 
     [Fact]
@@ -384,13 +388,14 @@ public class PendingChangeSetTests
     }
 
     [Fact]
-    public void Throws_when_renaming_a_category_that_has_no_marker()
+    public void Skips_renaming_a_category_that_has_no_marker()
     {
         var changes = new PendingChangeSet();
         changes.RenameCategory("Missing", "Office");
 
-        Should.Throw<InvalidOperationException>(() => changes.ApplyTo(Grouping(NoCategory())))
-            .Message.ShouldContain("No category marker found for 'Missing'.");
+        var projected = changes.ApplyTo(Grouping(NoCategory()));
+
+        projected.Select(group => group.Name).ShouldBe(new string?[] { null });
     }
 
     [Theory]
@@ -470,13 +475,60 @@ public class PendingChangeSetTests
     }
 
     [Fact]
-    public void Throws_when_deleting_a_category_that_has_no_marker()
+    public void Skips_deleting_a_category_that_has_no_marker()
     {
         var changes = new PendingChangeSet();
         changes.DeleteCategory("Missing");
 
-        Should.Throw<InvalidOperationException>(() => changes.ApplyTo(Grouping(NoCategory())))
-            .Message.ShouldContain("No category marker found for 'Missing'.");
+        var projected = changes.ApplyTo(Grouping(NoCategory()));
+
+        projected.Select(group => group.Name).ShouldBe(new string?[] { null });
+    }
+
+    [Fact]
+    public void Skips_deleting_a_category_when_there_is_no_no_category_group_to_reparent_into()
+    {
+        var current = Grouping(new CategoryGroup("Work", new[] { new HostEntry("10.0.0.1", "api.test") }));
+        var changes = new PendingChangeSet();
+        changes.DeleteCategory("Work");
+
+        var projected = changes.ApplyTo(current);
+
+        projected.Select(group => group.Name).ShouldBe(new[] { "Work" });
+        EntriesUnder(projected, "Work").ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("10.0.0.1", "api.test"));
+    }
+
+    [Fact]
+    public void Skips_a_move_whose_target_category_is_missing_without_dropping_the_entry()
+    {
+        var current = Grouping(NoCategory(new HostEntry("127.0.0.1", "web.test")));
+        var changes = new PendingChangeSet();
+        changes.MoveEntry(new HostEntry("127.0.0.1", "web.test"), "Missing");
+
+        var projected = changes.ApplyTo(current);
+
+        projected.Select(group => group.Name).ShouldBe(new string?[] { null });
+        EntriesUnder(projected, null).ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("127.0.0.1", "web.test"));
+    }
+
+    [Fact]
+    public void Skips_a_stale_change_whose_target_an_earlier_change_already_removed()
+    {
+        var current = Grouping(NoCategory(
+            new HostEntry("127.0.0.1", "web.test"),
+            new HostEntry("10.0.0.1", "api.test")));
+        var changes = new PendingChangeSet();
+        changes.DeleteEntry(new HostEntry("127.0.0.1", "web.test"));
+        changes.UpdateEntry(
+            new HostEntry("127.0.0.1", "web.test"),
+            new HostEntry("127.0.0.1", "web.test", null, HostEntryStatus.Disabled));
+
+        var projected = changes.ApplyTo(current);
+
+        EntriesUnder(projected, null).ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("10.0.0.1", "api.test"));
     }
 
     [Theory]

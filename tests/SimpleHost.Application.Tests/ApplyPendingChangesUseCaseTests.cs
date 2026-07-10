@@ -354,6 +354,61 @@ public class ApplyPendingChangesUseCaseTests
         public bool IsElevated { get; } = isElevated;
     }
 
+    [Fact]
+    public void Skips_a_change_whose_target_can_no_longer_be_located_and_writes_the_rest()
+    {
+        var repository = new StalePendingChangeRepository();
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), new RecordingDnsCacheFlusher());
+        var changes = new PendingChangeSet();
+        changes.UpdateEntry(
+            new HostEntry("127.0.0.1", "gone.test"),
+            new HostEntry("127.0.0.1", "gone.test", null, HostEntryStatus.Disabled));
+        changes.AddEntry(new HostEntry("10.0.0.1", "api.test"));
+
+        Should.NotThrow(() => useCase.Execute(changes, flushDnsAfterSave: false));
+
+        // The stale update the repository cannot locate is skipped; the addition after it still writes,
+        // and the set is cleared — apply neither crashes nor stops at the missing target.
+        repository.Operations.ShouldHaveSingleItem().ShouldBe("Add api.test");
+        changes.HasChanges.ShouldBeFalse();
+    }
+
+    private sealed class StalePendingChangeRepository : IHostsFileRepository
+    {
+        private readonly List<string> _operations = new();
+
+        public IReadOnlyList<string> Operations => _operations;
+
+        public void UpdateEntry(HostEntry target, HostEntry replacement)
+            => throw new InvalidOperationException($"No entry found matching '{target}'.");
+
+        public void AddEntry(HostEntry entry, string? category = null)
+            => _operations.Add($"Add {entry.Hostname}");
+
+        public void CreateCategory(string name) => throw new NotSupportedException();
+
+        public void RenameCategory(string currentName, string newName) => throw new NotSupportedException();
+
+        public void DeleteCategory(string name) => throw new NotSupportedException();
+
+        public void MoveEntryToCategory(HostEntry entry, string? targetCategory)
+            => throw new NotSupportedException();
+
+        public void MoveEntryToCategory(HostEntry entry, string? targetCategory, int targetIndex)
+            => throw new NotSupportedException();
+
+        public void ReorderEntry(HostEntry entry, int targetIndex) => throw new NotSupportedException();
+
+        public void DeleteEntry(HostEntry entry) => throw new NotSupportedException();
+
+        public IReadOnlyList<HostEntry> GetActiveEntries() => throw new NotSupportedException();
+
+        public IReadOnlyList<HostEntry> GetEntries() => throw new NotSupportedException();
+
+        public IReadOnlyList<CategoryGroup> GetGroupedEntries() => throw new NotSupportedException();
+    }
+
     private sealed class RecordingDnsCacheFlusher(Func<int>? writesSoFar = null) : IDnsCacheFlusher
     {
         private readonly Func<int>? _writesSoFar = writesSoFar;

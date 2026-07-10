@@ -474,29 +474,12 @@ public sealed class MainViewModel : ViewModelBase
     private void RebuildDisplayedGroups()
     {
         Groups.Clear();
-        foreach (var group in ProjectPendingChanges())
+        foreach (var group in _pendingChanges.ApplyTo(_onDiskGroups))
         {
             Groups.Add(new CategoryGroupViewModel(group));
         }
 
         RebuildVisibleGroups();
-    }
-
-    /// <summary>
-    /// Projects the current pending changes onto the on-disk baseline. Should a staged change
-    /// momentarily reference a target that cannot be located against the baseline, the display falls
-    /// back to the on-disk state rather than letting a projection failure crash the UI while staging.
-    /// </summary>
-    private IReadOnlyList<CategoryGroup> ProjectPendingChanges()
-    {
-        try
-        {
-            return _pendingChanges.ApplyTo(_onDiskGroups);
-        }
-        catch (InvalidOperationException)
-        {
-            return _onDiskGroups;
-        }
     }
 
     private void RebuildVisibleGroups()

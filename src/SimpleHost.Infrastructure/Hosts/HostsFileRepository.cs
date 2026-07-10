@@ -44,6 +44,15 @@ public sealed class HostsFileRepository(
         File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
     }
 
+    public void DeleteEntry(HostEntry entry)
+    {
+        var lines = ReadContentLines(File.ReadAllText(filePath));
+
+        lines.RemoveAt(FindEntryIndex(lines, entry));
+
+        File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
+    }
+
     /// <summary>
     /// Returns the index of the first line that parses back to <paramref name="target"/> — matched
     /// by its parsed content rather than by raw text, so incidental whitespace differences do not

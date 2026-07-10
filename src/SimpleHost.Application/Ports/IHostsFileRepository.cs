@@ -51,6 +51,19 @@ public interface IHostsFileRepository
     void MoveEntryToCategory(HostEntry entry, string? targetCategory);
 
     /// <summary>
+    /// Removes the first entry that matches <paramref name="entry"/> from the <c>hosts</c> file,
+    /// deleting its line so the entry disappears from subsequent reads. Matching is by parsed
+    /// content (IP, hostname, inline comment, active/disabled status) rather than raw text, so a
+    /// disabled (commented-out) entry can be deleted too. Any surrounding lines — other entries,
+    /// blank lines, plain comments, and <c># [SimpleHost:Category] &lt;Name&gt;</c> markers — are
+    /// left in place, so a category whose last entry is deleted keeps its (now empty) marker.
+    /// Throws when no line matches. Deleting a system entry is a destructive action the UI must
+    /// confirm before calling.
+    /// </summary>
+    /// <param name="entry">The existing entry to delete, as previously read from the file.</param>
+    void DeleteEntry(HostEntry entry);
+
+    /// <summary>
     /// Returns every active (uncommented) entry currently in the <c>hosts</c> file,
     /// in the order they appear.
     /// </summary>

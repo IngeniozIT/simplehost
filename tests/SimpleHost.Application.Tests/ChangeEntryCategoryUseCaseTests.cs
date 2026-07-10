@@ -50,6 +50,8 @@ public class ChangeEntryCategoryUseCaseTests
 
         public bool MoveWasRequested { get; private set; }
 
+        public void DeleteEntry(HostEntry entry) => throw new NotSupportedException();
+
         public void MoveEntryToCategory(HostEntry entry, string? targetCategory)
         {
             MovedEntry = entry;

@@ -64,6 +64,8 @@ public class UpdateEntryHostnameUseCaseTests
             Replacement = replacement;
         }
 
+        public void DeleteEntry(HostEntry entry) => throw new NotSupportedException();
+
         public void MoveEntryToCategory(HostEntry entry, string? targetCategory)
             => throw new NotSupportedException();
 

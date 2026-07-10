@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using SimpleHost.Presentation.ViewModels;
+using SimpleHost.Presentation.ViewModels.DeepLinks;
 
 namespace SimpleHost.Presentation;
 
@@ -38,6 +39,11 @@ public partial class MainWindow : Window
         // until the view confirms it. Supply the confirmation as a modal Yes/No prompt naming the
         // entry; declining (or dismissing) leaves the entry in place.
         _viewModel.DeleteConfirmation = ConfirmDelete;
+
+        // A simplehost:// update, delete or disable link can be triggered by any web page, so the
+        // view-model stages nothing for those actions until the view confirms. Supply the
+        // confirmation as a modal Yes/No prompt describing the change; declining stages nothing.
+        _viewModel.DeepLinkConfirmation = ConfirmDeepLink;
 
         // A refused subscription, import or export changes nothing and reports its reason through these
         // callbacks; surface each as a modal warning so the user learns why nothing happened.
@@ -121,6 +127,18 @@ public partial class MainWindow : Window
             this,
             $"Delete the entry mapping {entry.Hostname} to {entry.IpAddress}?",
             "Delete entry",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        return answer == MessageBoxResult.Yes;
+    }
+
+    private bool ConfirmDeepLink(DeepLinkConfirmationRequest request)
+    {
+        var answer = System.Windows.MessageBox.Show(
+            this,
+            request.Description,
+            "SimpleHost",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
 

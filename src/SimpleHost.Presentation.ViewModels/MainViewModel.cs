@@ -24,6 +24,7 @@ using SimpleHost.Domain.Categories;
 using SimpleHost.Domain.Entries;
 using SimpleHost.Domain.Preview;
 using SimpleHost.Domain.Profiles;
+using SimpleHost.Presentation.ViewModels.DeepLinks;
 
 namespace SimpleHost.Presentation.ViewModels;
 
@@ -53,6 +54,7 @@ public sealed class MainViewModel : ViewModelBase
     private readonly ExportConfigurationUseCase _exportConfiguration;
     private readonly ImportHostsFileUseCase _importHostsFile;
     private readonly PendingChangeSet _pendingChanges;
+    private readonly DeepLinkRouter _deepLinkRouter = new();
     private readonly RelayCommand _applyCommand;
     private readonly RelayCommand _discardCommand;
     private readonly RelayCommand _previewCommand;
@@ -116,6 +118,32 @@ public sealed class MainViewModel : ViewModelBase
     /// the view provides a prompt, since a delete removes a mapping the user may still rely on.
     /// </summary>
     public Func<HostEntryViewModel, bool>? DeleteConfirmation { get; set; }
+
+    /// <summary>
+    /// The confirmation the view supplies before a destructive deep link (update, delete or disable)
+    /// is staged. It is handed a <see cref="DeepLinkConfirmationRequest"/> describing the change and
+    /// returns <see langword="true"/> to proceed or <see langword="false"/> to cancel. When left
+    /// unset, <see cref="HandleDeepLink"/> declines every destructive link and stages nothing — such
+    /// links fail closed until the view provides a prompt, since any web page can trigger one. The
+    /// non-destructive add and enable actions never consult it.
+    /// </summary>
+    public Func<DeepLinkConfirmationRequest, bool>? DeepLinkConfirmation { get; set; }
+
+    /// <summary>
+    /// Handles an incoming <c>simplehost://</c> deep link received by the running app — from a fresh
+    /// launch or forwarded from a second instance — by routing it against the current entries to the
+    /// matching handler and staging any resolved change as a pending change surfaced in the UI. The
+    /// update, delete and disable actions are staged only after <see cref="DeepLinkConfirmation"/>
+    /// approves them; a link that cannot be parsed or is rejected by its handler stages nothing. The
+    /// returned <see cref="DeepLinkRoutingOutcome"/> lets the view report what happened.
+    /// </summary>
+    /// <param name="link">The raw link text, as received from the operating system.</param>
+    public DeepLinkRoutingOutcome HandleDeepLink(string? link)
+    {
+        var currentEntries = _viewGroupedEntries.Execute();
+        var confirm = DeepLinkConfirmation ?? (_ => false);
+        return _deepLinkRouter.Route(link, currentEntries, _pendingChanges, confirm);
+    }
 
     /// <summary>
     /// The draft of the entry being added, with live IP-address and hostname validation the view

@@ -3,7 +3,9 @@ using SimpleHost.Application.Appearance;
 using SimpleHost.Application.Tray;
 using SimpleHost.Infrastructure.Appearance;
 using SimpleHost.Presentation.Composition;
+using SimpleHost.Presentation.DeepLinks;
 using SimpleHost.Presentation.ViewModels;
+using SimpleHost.Presentation.ViewModels.DeepLinks;
 
 namespace SimpleHost.Presentation;
 
@@ -25,9 +27,27 @@ public partial class App : System.Windows.Application
     private SystemThemeWatcher? _themeWatcher;
     private CompositionRoot? _compositionRoot;
     private MainViewModel? _mainViewModel;
+    private SingleInstanceDeepLinkService? _deepLinkService;
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Keep SimpleHost to a single running instance. When a simplehost:// link opens a second copy,
+        // hand the link to the instance already running and exit, so subsequent links are handled by
+        // the one running app rather than starting another copy.
+        _deepLinkService = new SingleInstanceDeepLinkService();
+        if (!_deepLinkService.IsPrimary)
+        {
+            if (DeepLinkCommandLine.TryExtractLink(e.Args, out var forwardedLink))
+            {
+                SingleInstanceDeepLinkService.ForwardLink(forwardedLink);
+            }
+
+            _deepLinkService.Dispose();
+            _deepLinkService = null;
+            Shutdown();
+            return;
+        }
+
         base.OnStartup(e);
 
         StartFollowingSystemTheme();
@@ -43,6 +63,14 @@ public partial class App : System.Windows.Application
         // the tray is applied straight to the running app and is reflected in the window when it is open.
         var trayController = new TrayMenuController(_mainViewModel, new TrayMenuFactory());
         _trayIcon = new SimpleHostTrayIcon(trayController, ShowMainWindow, Shutdown);
+
+        // Route links forwarded by future second instances into the running app, and act on a link
+        // this instance may itself have been launched with.
+        _deepLinkService.StartListening(OnDeepLinkReceived);
+        if (DeepLinkCommandLine.TryExtractLink(e.Args, out var launchLink))
+        {
+            OnDeepLinkReceived(launchLink);
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -51,7 +79,20 @@ public partial class App : System.Windows.Application
         _themeWatcher?.Dispose();
         _themeProvider?.Dispose();
         _compositionRoot?.Dispose();
+        _deepLinkService?.Dispose();
         base.OnExit(e);
+    }
+
+    private void OnDeepLinkReceived(string link)
+    {
+        // Forwarded links arrive on a background thread; marshal to the UI thread, bring the window
+        // forward so the staged change is visible, then route the link through the view-model, which
+        // prompts for confirmation on the destructive update, delete and disable actions.
+        Dispatcher.Invoke(() =>
+        {
+            ShowMainWindow();
+            _mainViewModel!.HandleDeepLink(link);
+        });
     }
 
     private void StartFollowingSystemTheme()

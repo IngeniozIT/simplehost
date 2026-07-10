@@ -6,7 +6,8 @@ namespace SimpleHost.Infrastructure.Hosts;
 
 /// <summary>
 /// Reads host entries from a <c>hosts</c> file on disk — active only, or active and disabled —
-/// and adds new entries by appending them to the file.
+/// and adds new entries by appending them to the file. Every write is preceded by an automatic
+/// backup of the current file contents so the previous version can always be rolled back to.
 /// </summary>
 public sealed class HostsFileRepository(
     string filePath,
@@ -15,6 +16,7 @@ public sealed class HostsFileRepository(
 {
     public void AddEntry(HostEntry entry, string? category = null)
     {
+        BackupCurrentFile();
         var line = serializer.SerializeEntry(entry);
         var lines = ReadContentLines(File.ReadAllText(filePath));
 
@@ -25,6 +27,7 @@ public sealed class HostsFileRepository(
 
     public void UpdateEntry(HostEntry target, HostEntry replacement)
     {
+        BackupCurrentFile();
         var lines = ReadContentLines(File.ReadAllText(filePath));
 
         lines[FindEntryIndex(lines, target)] = serializer.SerializeEntry(replacement);
@@ -34,6 +37,7 @@ public sealed class HostsFileRepository(
 
     public void MoveEntryToCategory(HostEntry entry, string? targetCategory)
     {
+        BackupCurrentFile();
         var lines = ReadContentLines(File.ReadAllText(filePath));
 
         var index = FindEntryIndex(lines, entry);
@@ -46,12 +50,22 @@ public sealed class HostsFileRepository(
 
     public void DeleteEntry(HostEntry entry)
     {
+        BackupCurrentFile();
         var lines = ReadContentLines(File.ReadAllText(filePath));
 
         lines.RemoveAt(FindEntryIndex(lines, entry));
 
         File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
     }
+
+    /// <summary>
+    /// Copies the current <c>hosts</c> file to a sibling <c>.bak</c> file, overwriting any earlier
+    /// backup, so the version about to be replaced is preserved before a write is applied. Called
+    /// at the start of every mutating operation, keeping the most recent previous version available
+    /// to roll back to.
+    /// </summary>
+    private void BackupCurrentFile()
+        => File.Copy(filePath, $"{filePath}.bak", overwrite: true);
 
     /// <summary>
     /// Returns the index of the first line that parses back to <paramref name="target"/> — matched

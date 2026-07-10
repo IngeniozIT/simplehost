@@ -151,5 +151,10 @@ public sealed class HostsFileRepositoryAddEntryCategoryTests : IDisposable
         {
             File.Delete(_path);
         }
+
+        if (File.Exists($"{_path}.bak"))
+        {
+            File.Delete($"{_path}.bak");
+        }
     }
 }

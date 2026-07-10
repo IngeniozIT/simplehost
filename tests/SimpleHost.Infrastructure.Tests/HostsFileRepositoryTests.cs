@@ -73,5 +73,10 @@ public sealed class HostsFileRepositoryTests : IDisposable
         {
             File.Delete(_path);
         }
+
+        if (File.Exists($"{_path}.bak"))
+        {
+            File.Delete($"{_path}.bak");
+        }
     }
 }

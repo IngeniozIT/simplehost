@@ -60,8 +60,7 @@ public sealed class MainViewModel : ViewModelBase
     private bool _hasDuplicateEntries;
     private HostEntryViewModel? _entryBeingEdited;
     private HostsFileDiff? _previewDiff;
-    private string _hostnameQuery = string.Empty;
-    private string _ipAddressQuery = string.Empty;
+    private string _searchQuery = string.Empty;
     private string? _categoryFilter;
     private bool _isCategoryFilterActive;
     private bool _flushDnsAfterSaving;
@@ -170,40 +169,26 @@ public sealed class MainViewModel : ViewModelBase
 
     /// <summary>
     /// The grouped entries the window actually renders: <see cref="Groups"/> narrowed to those
-    /// matching the active <see cref="HostnameQuery"/>, <see cref="IpAddressQuery"/> and category
-    /// filter. With no active filter it mirrors <see cref="Groups"/> (empty groups included); once
-    /// any criterion is active it keeps only matching entries — combining the criteria as an
-    /// intersection — and drops groups left with nothing to show. The underlying
-    /// <see cref="Groups"/> is left unchanged, so clearing the query restores the full view.
+    /// matching the active <see cref="SearchQuery"/> and category filter. With no active filter it
+    /// mirrors <see cref="Groups"/> (empty groups included); once any criterion is active it keeps
+    /// only matching entries — combining the search and category criteria as an intersection — and
+    /// drops groups left with nothing to show. The underlying <see cref="Groups"/> is left unchanged,
+    /// so clearing the query restores the full view.
     /// </summary>
     public ObservableCollection<CategoryGroupViewModel> VisibleGroups { get; } = new();
 
     /// <summary>
-    /// The hostname substring the visible list is narrowed by, matched case-insensitively as a
-    /// substring of each shown entry's hostname. Blank (empty or whitespace) means no hostname narrowing.
+    /// The single search text the visible list is narrowed by, matched case-insensitively as a
+    /// substring against each shown entry's IP address, hostname OR description (the inline comment):
+    /// an entry is kept when the text appears in any one of the three. Blank (empty or whitespace)
+    /// means no search narrowing.
     /// </summary>
-    public string HostnameQuery
+    public string SearchQuery
     {
-        get => _hostnameQuery;
+        get => _searchQuery;
         set
         {
-            if (SetProperty(ref _hostnameQuery, value))
-            {
-                OnFilterChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// The IP-address substring the visible list is narrowed by, matched case-insensitively as a
-    /// substring of each shown entry's IP address. Blank (empty or whitespace) means no IP narrowing.
-    /// </summary>
-    public string IpAddressQuery
-    {
-        get => _ipAddressQuery;
-        set
-        {
-            if (SetProperty(ref _ipAddressQuery, value))
+            if (SetProperty(ref _searchQuery, value))
             {
                 OnFilterChanged();
             }
@@ -231,10 +216,9 @@ public sealed class MainViewModel : ViewModelBase
         private set => SetProperty(ref _categoryFilter, value);
     }
 
-    /// <summary>Whether any of the hostname, IP-address or category criteria is currently active.</summary>
+    /// <summary>Whether the search query or the category criterion is currently active.</summary>
     public bool HasActiveFilter
-        => !string.IsNullOrWhiteSpace(_hostnameQuery)
-            || !string.IsNullOrWhiteSpace(_ipAddressQuery)
+        => !string.IsNullOrWhiteSpace(_searchQuery)
             || _isCategoryFilterActive;
 
     /// <summary>
@@ -498,7 +482,7 @@ public sealed class MainViewModel : ViewModelBase
                 continue;
             }
 
-            var entries = group.Entries.Where(MatchesActiveQueries).ToList();
+            var entries = group.Entries.Where(MatchesSearchQuery).ToList();
             if (entries.Count > 0)
             {
                 VisibleGroups.Add(new CategoryGroupViewModel(group.Name, entries));
@@ -507,26 +491,25 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Whether <paramref name="entry"/> passes the active hostname and IP-address queries — each a
-    /// case-insensitive substring test, skipped while its query is blank. The category criterion is
-    /// applied structurally in <see cref="RebuildVisibleGroups"/> against the group the entry is shown
-    /// under, so a staged move is reflected the moment it is projected.
+    /// Whether <paramref name="entry"/> passes the active <see cref="SearchQuery"/> — a
+    /// case-insensitive substring test satisfied when the query text appears in the entry's IP
+    /// address, hostname OR description (the inline comment), so the three fields are searched as a
+    /// union. A blank query matches every entry. The category criterion is applied structurally in
+    /// <see cref="RebuildVisibleGroups"/> against the group the entry is shown under, so a staged move
+    /// is reflected the moment it is projected.
     /// </summary>
-    private bool MatchesActiveQueries(HostEntryViewModel entry)
+    private bool MatchesSearchQuery(HostEntryViewModel entry)
     {
-        if (!string.IsNullOrWhiteSpace(_hostnameQuery)
-            && !entry.Hostname.Contains(_hostnameQuery.Trim(), StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(_searchQuery))
         {
-            return false;
+            return true;
         }
 
-        if (!string.IsNullOrWhiteSpace(_ipAddressQuery)
-            && !entry.IpAddress.Contains(_ipAddressQuery.Trim(), StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        return true;
+        var query = _searchQuery.Trim();
+        return entry.IpAddress.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || entry.Hostname.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || (entry.Comment is not null
+                && entry.Comment.Contains(query, StringComparison.OrdinalIgnoreCase));
     }
 
     private void RefreshWarnings()

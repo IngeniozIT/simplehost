@@ -1259,12 +1259,12 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void A_hostname_query_narrows_the_visible_groups_to_matching_entries()
+    public void A_search_query_narrows_the_visible_groups_to_entries_matching_by_hostname()
     {
         var viewModel = BuildViewModel(SampleRepository());
         viewModel.Load();
 
-        viewModel.HostnameQuery = "dev";
+        viewModel.SearchQuery = "dev";
 
         viewModel.VisibleGroups.Select(group => group.DisplayName).ShouldBe(new[] { "Development" });
         viewModel.VisibleGroups[0].Entries.Select(entry => entry.Hostname)
@@ -1273,53 +1273,99 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void A_hostname_query_matches_case_insensitively_as_a_substring()
+    public void A_search_query_matches_the_hostname_case_insensitively_as_a_substring()
     {
         var viewModel = BuildViewModel(SampleRepository());
         viewModel.Load();
 
-        viewModel.HostnameQuery = "PROD";
+        viewModel.SearchQuery = "PROD";
 
         viewModel.VisibleGroups.SelectMany(group => group.Entries.Select(entry => entry.Hostname))
             .ShouldBe(new[] { "app.prod.test" });
     }
 
     [Fact]
-    public void An_ip_address_query_narrows_the_visible_groups_to_matching_entries()
+    public void A_search_query_narrows_the_visible_groups_to_entries_matching_by_ip_address()
     {
         var viewModel = BuildViewModel(SampleRepository());
         viewModel.Load();
 
-        viewModel.IpAddressQuery = "10.0.0";
+        viewModel.SearchQuery = "10.0.0";
 
         viewModel.VisibleGroups.SelectMany(group => group.Entries.Select(entry => entry.Hostname))
             .ShouldBe(new[] { "api.dev.test", "db.dev.test" });
     }
 
     [Fact]
-    public void An_ip_address_query_on_its_own_makes_the_filter_active()
+    public void A_search_query_narrows_the_visible_groups_to_entries_matching_by_description()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[]
+                {
+                    new HostEntry("127.0.0.1", "localhost", "loopback interface"),
+                    new HostEntry("192.168.1.1", "router.home", "the gateway"),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+
+        // "loopback" appears only in the first entry's description — neither its IP nor its hostname —
+        // so the description search path is what keeps it and drops the other entry.
+        viewModel.SearchQuery = "loopback";
+
+        viewModel.VisibleGroups.SelectMany(group => group.Entries.Select(entry => entry.Hostname))
+            .ShouldBe(new[] { "localhost" });
+    }
+
+    [Fact]
+    public void A_search_query_matches_the_description_case_insensitively_as_a_substring()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[]
+                {
+                    new HostEntry("127.0.0.1", "localhost", "Loopback Interface"),
+                    new HostEntry("192.168.1.1", "router.home", "the gateway"),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+
+        viewModel.SearchQuery = "LOOP";
+
+        viewModel.VisibleGroups.SelectMany(group => group.Entries.Select(entry => entry.Hostname))
+            .ShouldBe(new[] { "localhost" });
+    }
+
+    [Fact]
+    public void A_search_query_on_its_own_makes_the_filter_active()
     {
         var viewModel = BuildViewModel(SampleRepository());
         viewModel.Load();
 
-        viewModel.IpAddressQuery = "10.0.0";
+        viewModel.SearchQuery = "10.0.0";
 
-        // Only the IP-address criterion is set: the hostname query is blank and no category filter
-        // is active, so this isolates the IP-address clause of HasActiveFilter.
-        viewModel.HostnameQuery.ShouldBeEmpty();
+        // Only the search criterion is set and no category filter is active, so this isolates the
+        // search clause of HasActiveFilter.
         viewModel.IsCategoryFilterActive.ShouldBeFalse();
         viewModel.HasActiveFilter.ShouldBeTrue();
     }
 
     [Fact]
-    public void A_blank_ip_address_query_on_its_own_leaves_the_filter_inactive()
+    public void A_blank_search_query_on_its_own_leaves_the_filter_inactive()
     {
         var viewModel = BuildViewModel(SampleRepository());
         viewModel.Load();
 
-        viewModel.IpAddressQuery = "   ";
+        viewModel.SearchQuery = "   ";
 
-        viewModel.HostnameQuery.ShouldBeEmpty();
         viewModel.IsCategoryFilterActive.ShouldBeFalse();
         viewModel.HasActiveFilter.ShouldBeFalse();
     }
@@ -1355,16 +1401,15 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void The_hostname_ip_and_category_criteria_combine_as_an_intersection()
+    public void The_search_and_category_criteria_combine_as_an_intersection()
     {
         var viewModel = BuildViewModel(SampleRepository());
         viewModel.Load();
 
-        viewModel.HostnameQuery = "test";
-        viewModel.IpAddressQuery = "10.0.0";
+        viewModel.SearchQuery = "test";
         viewModel.FilterByCategory("Development");
 
-        // Every Development entry matches ".test" and "10.0.0", so both survive the intersection.
+        // Every Development entry matches ".test", so both survive the intersection with the category.
         viewModel.VisibleGroups.Select(group => group.DisplayName).ShouldBe(new[] { "Development" });
         viewModel.VisibleGroups[0].Entries.Select(entry => entry.Hostname)
             .ShouldBe(new[] { "api.dev.test", "db.dev.test" });
@@ -1377,7 +1422,7 @@ public class MainViewModelTests
         viewModel.Load();
 
         // "api" matches only api.dev.test by hostname; the Production filter then excludes it.
-        viewModel.HostnameQuery = "api";
+        viewModel.SearchQuery = "api";
         viewModel.FilterByCategory("Production");
 
         viewModel.VisibleGroups.ShouldBeEmpty();
@@ -1389,32 +1434,19 @@ public class MainViewModelTests
         var viewModel = BuildViewModel(SampleRepository());
         viewModel.Load();
 
-        viewModel.HostnameQuery = "no-such-host";
+        viewModel.SearchQuery = "no-such-host";
 
         viewModel.VisibleGroups.ShouldBeEmpty();
     }
 
     [Fact]
-    public void A_blank_hostname_query_is_inactive_and_shows_every_entry()
+    public void A_blank_search_query_is_inactive_and_shows_every_entry()
     {
         var viewModel = BuildViewModel(SampleRepository());
         viewModel.Load();
-        viewModel.HostnameQuery = "dev";
+        viewModel.SearchQuery = "dev";
 
-        viewModel.HostnameQuery = "   ";
-
-        viewModel.VisibleGroups.Select(group => group.DisplayName)
-            .ShouldBe(new[] { "No category", "Development", "Production" });
-        viewModel.HasActiveFilter.ShouldBeFalse();
-    }
-
-    [Fact]
-    public void A_blank_ip_address_query_is_inactive_and_shows_every_entry()
-    {
-        var viewModel = BuildViewModel(SampleRepository());
-        viewModel.Load();
-
-        viewModel.IpAddressQuery = "   ";
+        viewModel.SearchQuery = "   ";
 
         viewModel.VisibleGroups.Select(group => group.DisplayName)
             .ShouldBe(new[] { "No category", "Development", "Production" });
@@ -1429,7 +1461,7 @@ public class MainViewModelTests
         var raised = new List<string?>();
         viewModel.PropertyChanged += (_, args) => raised.Add(args.PropertyName);
 
-        viewModel.HostnameQuery = "dev";
+        viewModel.SearchQuery = "dev";
         raised.ShouldContain(nameof(MainViewModel.HasActiveFilter));
 
         raised.Clear();
@@ -1459,7 +1491,7 @@ public class MainViewModelTests
         var viewModel = BuildViewModel(SampleRepository());
         viewModel.Load();
 
-        viewModel.HostnameQuery = "dev";
+        viewModel.SearchQuery = "dev";
         viewModel.FilterByCategory("Development");
 
         viewModel.Groups.Select(group => group.DisplayName)
@@ -1487,7 +1519,7 @@ public class MainViewModelTests
         var repository = SampleRepository();
         var viewModel = BuildViewModel(repository);
         viewModel.Load();
-        viewModel.HostnameQuery = "dev";
+        viewModel.SearchQuery = "dev";
 
         repository.GroupedEntries = new[]
         {

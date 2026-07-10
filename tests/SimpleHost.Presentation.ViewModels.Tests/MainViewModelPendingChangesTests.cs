@@ -497,7 +497,7 @@ public class MainViewModelPendingChangesTests
     }
 
     [Fact]
-    public void A_status_flip_stays_visible_under_an_active_hostname_filter()
+    public void A_status_flip_stays_visible_under_an_active_search_query()
     {
         var repository = new RecordingHostsFileRepository
         {
@@ -508,7 +508,7 @@ public class MainViewModelPendingChangesTests
         };
         var viewModel = BuildViewModel(repository);
         viewModel.Load();
-        viewModel.HostnameQuery = "web";
+        viewModel.SearchQuery = "web";
 
         viewModel.DisableEntry(viewModel.Groups[0].Entries[0]);
 
@@ -529,7 +529,7 @@ public class MainViewModelPendingChangesTests
         };
         var viewModel = BuildViewModel(repository);
         viewModel.Load();
-        viewModel.HostnameQuery = "api";
+        viewModel.SearchQuery = "api";
         viewModel.VisibleGroups.ShouldBeEmpty();
 
         viewModel.AddEntry("10.0.0.1", "api.test");

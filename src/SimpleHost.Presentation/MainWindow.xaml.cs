@@ -80,10 +80,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private void OnClearFiltersClick(object sender, RoutedEventArgs e)
     {
-        // Clearing the boxes resets the search queries through their bindings; dropping the combo's
+        // Clearing the box resets the search query through its binding; dropping the combo's
         // selection turns the category filter off via OnCategoryFilterChanged.
-        HostnameSearchBox.Clear();
-        IpSearchBox.Clear();
+        SearchBox.Clear();
         CategoryFilterBox.SelectedItem = null;
     }
 

@@ -45,16 +45,11 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Orientation="Horizontal">
-                            <ui:TextBox x:Name="HostnameSearchBox"
-                                        Width="240"
+                            <ui:TextBox x:Name="SearchBox"
+                                        Width="398"
                                         Icon="{ui:SymbolIcon Search24}"
-                                        PlaceholderText="Search hostname"
-                                        Text="{Binding HostnameQuery, UpdateSourceTrigger=PropertyChanged}" />
-                            <ui:TextBox x:Name="IpSearchBox"
-                                        Width="150"
-                                        Margin="8,0,0,0"
-                                        PlaceholderText="IP address"
-                                        Text="{Binding IpAddressQuery, UpdateSourceTrigger=PropertyChanged}" />
+                                        PlaceholderText="Search IP, hostname or description"
+                                        Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}" />
                             <ComboBox x:Name="CategoryFilterBox"
                                       Width="170"
                                       Margin="8,0,0,0"

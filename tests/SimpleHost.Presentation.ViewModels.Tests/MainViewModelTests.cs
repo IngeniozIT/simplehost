@@ -1297,6 +1297,34 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public void An_ip_address_query_on_its_own_makes_the_filter_active()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+
+        viewModel.IpAddressQuery = "10.0.0";
+
+        // Only the IP-address criterion is set: the hostname query is blank and no category filter
+        // is active, so this isolates the IP-address clause of HasActiveFilter.
+        viewModel.HostnameQuery.ShouldBeEmpty();
+        viewModel.IsCategoryFilterActive.ShouldBeFalse();
+        viewModel.HasActiveFilter.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void A_blank_ip_address_query_on_its_own_leaves_the_filter_inactive()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.Load();
+
+        viewModel.IpAddressQuery = "   ";
+
+        viewModel.HostnameQuery.ShouldBeEmpty();
+        viewModel.IsCategoryFilterActive.ShouldBeFalse();
+        viewModel.HasActiveFilter.ShouldBeFalse();
+    }
+
+    [Fact]
     public void A_category_filter_narrows_the_visible_groups_to_the_chosen_category()
     {
         var viewModel = BuildViewModel(SampleRepository());

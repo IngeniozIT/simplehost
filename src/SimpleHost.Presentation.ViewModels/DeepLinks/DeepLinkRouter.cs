@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using SimpleHost.Application.DeepLinks;
 using SimpleHost.Application.Pending;
 using SimpleHost.Domain.Categories;
@@ -65,8 +66,9 @@ public sealed class DeepLinkRouter
             DeepLinkAction.Update => RouteUpdate(parsed, currentEntries, pendingChanges, confirm),
             DeepLinkAction.Delete => RouteDelete(parsed, currentEntries, pendingChanges, confirm),
             DeepLinkAction.Disable => RouteDisable(parsed, currentEntries, pendingChanges, confirm),
-            _ => DeepLinkRoutingOutcome.Rejected(
-                parsed.Action, $"The '{parsed.Action}' action is not supported."),
+            // DeepLink.TryParse only ever yields one of the actions handled above, so this arm is
+            // unreachable; it exists solely to make the switch exhaustive for the compiler.
+            _ => throw new UnreachableException(),
         };
     }
 
@@ -188,9 +190,10 @@ public sealed class DeepLinkRouter
 
         if (result.ChangesCategory)
         {
-            changes.Add(result.TargetCategory is null
-                ? "move it to no category"
-                : $"move it to the '{result.TargetCategory}' category");
+            // An update deep link changes the category only when it carries a non-blank category
+            // parameter, so TargetCategory is always a named category here — a move to "no category"
+            // is not expressible through a link and therefore never reached.
+            changes.Add($"move it to the '{result.TargetCategory}' category");
         }
 
         return $"Update the entry '{target.Hostname}' and {string.Join(" and ", changes)}?";

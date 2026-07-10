@@ -82,6 +82,7 @@
                                     <TextBlock x:Name="Comment"
                                                Grid.Column="4"
                                                Text="{Binding Placement.Entry.Comment, StringFormat='# {0}'}"
+                                               ToolTip="{Binding Placement.Entry.Comment}"
                                                FontStyle="Italic"
                                                Opacity="0.7"
                                                TextTrimming="CharacterEllipsis" />
@@ -102,7 +103,7 @@
                                     <DataTrigger Binding="{Binding Kind}" Value="Unchanged">
                                         <Setter TargetName="LineGrid" Property="Opacity" Value="0.55" />
                                     </DataTrigger>
-                                    <!-- Hide the comment column when the entry has no comment. -->
+                                    <!-- Hide the description column when the entry has no description. -->
                                     <DataTrigger Binding="{Binding Placement.Entry.Comment}" Value="{x:Null}">
                                         <Setter TargetName="Comment" Property="Visibility" Value="Collapsed" />
                                     </DataTrigger>

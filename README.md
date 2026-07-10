@@ -18,6 +18,9 @@ administrator)**.
 ### Core
 
 - **CRUD entries** in the Windows `hosts` file.
+- **Optional per-entry Description** — attach a free-text note to any entry. It is stored
+  as the trailing `#` comment on the entry's line, so the file stays a completely valid,
+  portable `hosts` file.
 - **User-defined categories** — group entries however you like. Uncategorized entries
   appear in a **"No category"** group pinned to the top of the list.
 - **Drag-and-drop** to reorder entries and move an entry from one category to another.
@@ -93,6 +96,9 @@ marker) belongs to that category:
 
 - Entries **not** under any `# [SimpleHost:Category]` marker are shown under **"No
   category"**, at the top of the list.
+- An entry's optional **Description** is the free text after a trailing `#` on its line
+  (e.g. `# local frontend` above). It is shown next to the entry throughout the app and
+  preserved verbatim in the file.
 - A **disabled** entry is just a commented-out (`#`) `hosts` line — it stays in place but
   does not resolve.
 - **Entry order and category membership map directly to line order** within each marked
@@ -164,6 +170,8 @@ browser, a script, or the CLI companion) launches the app and performs an action
 - **`update`, `delete`, and `disable` always prompt for confirmation** before touching the
   `hosts` file. Any web page can trigger a link, so destructive actions are never silent.
 - Read/focus links simply open the app scrolled to the target entry.
+- On `add`, the optional `comment` parameter sets the new entry's **Description** (the
+  trailing `#` note on its line).
 
 ---
 

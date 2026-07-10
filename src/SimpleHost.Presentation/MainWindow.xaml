@@ -266,6 +266,7 @@
                                                                 <TextBlock x:Name="Host" Text="{Binding Hostname}" />
                                                                 <TextBlock x:Name="Description"
                                                                            Text="{Binding Comment}"
+                                                                           ToolTip="{Binding Comment}"
                                                                            FontSize="12"
                                                                            TextTrimming="CharacterEllipsis"
                                                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -290,7 +291,7 @@
                                                             <Setter TargetName="Row" Property="Opacity" Value="0.55" />
                                                             <Setter TargetName="Host" Property="TextDecorations" Value="Strikethrough" />
                                                         </DataTrigger>
-                                                        <!-- Hide the description line when the entry has no comment. -->
+                                                        <!-- Hide the description line when the entry has no description. -->
                                                         <DataTrigger Binding="{Binding Comment}" Value="{x:Null}">
                                                             <Setter TargetName="Description" Property="Visibility" Value="Collapsed" />
                                                         </DataTrigger>

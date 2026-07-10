@@ -29,4 +29,13 @@ public sealed class HostsFileSerializer
 
         return line;
     }
+
+    /// <summary>
+    /// Renders a category as the <c># [SimpleHost:Category] &lt;Name&gt;</c> marker line it occupies
+    /// in a <c>hosts</c> file. Uses the same marker tag <see cref="HostsFileParser"/> recognises, so
+    /// a written marker parses back to the same category name.
+    /// </summary>
+    /// <param name="name">The category name to place in the marker.</param>
+    public string SerializeCategoryMarker(string name)
+        => $"# {HostsFileParser.CategoryMarkerPrefix} {name}";
 }

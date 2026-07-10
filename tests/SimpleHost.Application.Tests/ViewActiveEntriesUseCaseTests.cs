@@ -60,6 +60,8 @@ public class ViewActiveEntriesUseCaseTests
         public void UpdateEntry(HostEntry target, HostEntry replacement)
             => throw new NotSupportedException();
 
+        public void CreateCategory(string name) => throw new NotSupportedException();
+
         public IReadOnlyList<CategoryGroup> GetGroupedEntries() => throw new NotSupportedException();
     }
 }

@@ -25,6 +25,16 @@ public sealed class HostsFileRepository(
         File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
     }
 
+    public void CreateCategory(string name)
+    {
+        BackupCurrentFile();
+        var lines = ReadContentLines(File.ReadAllText(filePath));
+
+        lines.Add(serializer.SerializeCategoryMarker(name));
+
+        File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
+    }
+
     public void UpdateEntry(HostEntry target, HostEntry replacement)
     {
         BackupCurrentFile();

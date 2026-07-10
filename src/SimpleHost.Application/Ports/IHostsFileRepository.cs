@@ -24,6 +24,15 @@ public interface IHostsFileRepository
     void AddEntry(HostEntry entry, string? category = null);
 
     /// <summary>
+    /// Creates a new, empty category by appending a <c># [SimpleHost:Category] &lt;Name&gt;</c>
+    /// marker to the <c>hosts</c> file, after all existing content, so it becomes the last group.
+    /// The marker carries no entries, so the category is returned by subsequent reads as an empty
+    /// group. Whether the same name already exists is not checked here; callers own that decision.
+    /// </summary>
+    /// <param name="name">The name of the category to create.</param>
+    void CreateCategory(string name);
+
+    /// <summary>
     /// Replaces the first entry that matches <paramref name="target"/> with
     /// <paramref name="replacement"/>, rewriting that entry's <c>hosts</c>-file line in place so
     /// its position — and therefore its order and category membership — is preserved. Used to

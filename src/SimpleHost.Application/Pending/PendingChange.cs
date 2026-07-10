@@ -73,6 +73,21 @@ public sealed record AddEntryChange(HostEntry Entry, string? Category) : Pending
 }
 
 /// <summary>
+/// A pending creation of a new, empty category, appended after every existing group — mirroring the
+/// <c># [SimpleHost:Category] &lt;Name&gt;</c> marker a later apply appends to the end of the file.
+/// It carries no entries, so it projects as an empty group.
+/// </summary>
+/// <param name="Name">The name of the category to create.</param>
+public sealed record CreateCategoryChange(string Name) : PendingChange
+{
+    internal override void ApplyTo(List<CategoryProjection> groups)
+        => groups.Add(new CategoryProjection(Name, Enumerable.Empty<HostEntry>()));
+
+    internal override void WriteTo(IHostsFileRepository repository)
+        => repository.CreateCategory(Name);
+}
+
+/// <summary>
 /// A pending replacement of an existing entry with an edited one, keeping its position — and so
 /// its order and category membership — unchanged.
 /// </summary>

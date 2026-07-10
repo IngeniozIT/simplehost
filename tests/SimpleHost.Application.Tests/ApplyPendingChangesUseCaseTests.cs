@@ -40,6 +40,19 @@ public class ApplyPendingChangesUseCaseTests
     }
 
     [Fact]
+    public void Writes_a_pending_category_creation_through_the_repository()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
+        var changes = new PendingChangeSet();
+        changes.CreateCategory("Work");
+
+        useCase.Execute(changes);
+
+        repository.Operations.ShouldHaveSingleItem().ShouldBe("CreateCategory Work");
+    }
+
+    [Fact]
     public void Writes_a_pending_update_through_the_repository()
     {
         var repository = new RecordingHostsFileRepository();
@@ -214,6 +227,9 @@ public class ApplyPendingChangesUseCaseTests
 
         public void AddEntry(HostEntry entry, string? category = null)
             => _operations.Add($"Add {entry} cat={category ?? "<none>"}");
+
+        public void CreateCategory(string name)
+            => _operations.Add($"CreateCategory {name}");
 
         public void UpdateEntry(HostEntry target, HostEntry replacement)
             => _operations.Add($"Update {target} -> {replacement}");

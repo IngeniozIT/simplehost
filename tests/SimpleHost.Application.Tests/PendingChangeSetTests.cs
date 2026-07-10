@@ -169,6 +169,54 @@ public class PendingChangeSetTests
     }
 
     [Fact]
+    public void Projects_a_created_category_as_a_new_empty_group_after_the_existing_groups()
+    {
+        var current = Grouping(
+            NoCategory(new HostEntry("127.0.0.1", "web.test")),
+            new CategoryGroup("Work", new[] { new HostEntry("10.0.0.1", "api.test") }));
+        var changes = new PendingChangeSet();
+        changes.CreateCategory("Home");
+
+        var projected = changes.ApplyTo(current);
+
+        projected.Select(group => group.Name).ShouldBe(new string?[] { null, "Work", "Home" });
+        EntriesUnder(projected, "Home").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Records_a_category_creation_as_a_pending_change()
+    {
+        var changes = new PendingChangeSet();
+
+        changes.CreateCategory("Work");
+
+        changes.HasChanges.ShouldBeTrue();
+        changes.Changes.ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public void Projects_a_created_category_under_its_trimmed_name()
+    {
+        var changes = new PendingChangeSet();
+        changes.CreateCategory("  Home  ");
+
+        var projected = changes.ApplyTo(Grouping(NoCategory()));
+
+        projected.Select(group => group.Name).ShouldBe(new string?[] { null, "Home" });
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Rejects_creating_a_category_with_an_empty_or_whitespace_name(string name)
+    {
+        var changes = new PendingChangeSet();
+
+        Should.Throw<ArgumentException>(() => changes.CreateCategory(name));
+        changes.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
     public void Throws_when_adding_under_a_category_that_has_no_marker()
     {
         var changes = new PendingChangeSet();

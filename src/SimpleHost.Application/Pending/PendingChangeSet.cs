@@ -23,6 +23,19 @@ public sealed class PendingChangeSet
     public void AddEntry(HostEntry entry, string? category = null)
         => _changes.Add(new AddEntryChange(entry, category));
 
+    /// <summary>
+    /// Records creating a new, empty category named <paramref name="name"/> (trimmed of surrounding
+    /// whitespace), which projects as an empty group appended after the existing groups.
+    /// </summary>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="name"/> is <c>null</c>, empty, or whitespace only.
+    /// </exception>
+    public void CreateCategory(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        _changes.Add(new CreateCategoryChange(name.Trim()));
+    }
+
     /// <summary>Records replacing <paramref name="target"/> in place with <paramref name="replacement"/>.</summary>
     public void UpdateEntry(HostEntry target, HostEntry replacement)
         => _changes.Add(new UpdateEntryChange(target, replacement));

@@ -39,6 +39,21 @@ public sealed class HostsFileSerializerTests
     }
 
     [Fact]
+    public void Serializes_a_category_as_a_marker_line()
+    {
+        _serializer.SerializeCategoryMarker("Work")
+            .ShouldBe("# [SimpleHost:Category] Work");
+    }
+
+    [Fact]
+    public void Round_trips_a_category_marker_through_the_parser()
+    {
+        HostsFileParser.TryParseCategoryMarker(_serializer.SerializeCategoryMarker("Work"), out var name)
+            .ShouldBeTrue();
+        name.ShouldBe("Work");
+    }
+
+    [Fact]
     public void Round_trips_every_status_and_comment_combination_through_the_parser()
     {
         var parser = new HostsFileParser();

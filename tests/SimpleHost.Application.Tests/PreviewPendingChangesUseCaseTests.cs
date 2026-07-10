@@ -83,6 +83,8 @@ public class PreviewPendingChangesUseCaseTests
 
         public bool WriteWasAttempted { get; private set; }
 
+        public void CreateCategory(string name) => throw new NotSupportedException();
+
         public IReadOnlyList<CategoryGroup> GetGroupedEntries()
         {
             GroupedReads++;

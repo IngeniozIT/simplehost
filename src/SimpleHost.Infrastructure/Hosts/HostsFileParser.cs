@@ -120,7 +120,12 @@ public sealed class HostsFileParser
         return TryParseDisabledLine(line, out entry);
     }
 
-    private const string CategoryMarkerPrefix = "[SimpleHost:Category]";
+    /// <summary>
+    /// The tag that marks a category line, following the leading <c>#</c>: the single source of
+    /// truth for the marker format, shared with <see cref="HostsFileSerializer"/> so that writing a
+    /// marker and parsing it back agree.
+    /// </summary>
+    internal const string CategoryMarkerPrefix = "[SimpleHost:Category]";
 
     /// <summary>
     /// Recognizes a <c># [SimpleHost:Category] &lt;Name&gt;</c> marker line and extracts its

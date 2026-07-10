@@ -56,6 +56,34 @@ public class ApplyPendingChangesUseCaseTests
     }
 
     [Fact]
+    public void Writes_a_pending_category_rename_through_the_repository()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), new RecordingDnsCacheFlusher());
+        var changes = new PendingChangeSet();
+        changes.RenameCategory("Work", "Office");
+
+        useCase.Execute(changes, flushDnsAfterSave: false);
+
+        repository.Operations.ShouldHaveSingleItem().ShouldBe("RenameCategory Work -> Office");
+    }
+
+    [Fact]
+    public void Writes_a_pending_category_deletion_through_the_repository()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), new RecordingDnsCacheFlusher());
+        var changes = new PendingChangeSet();
+        changes.DeleteCategory("Work");
+
+        useCase.Execute(changes, flushDnsAfterSave: false);
+
+        repository.Operations.ShouldHaveSingleItem().ShouldBe("DeleteCategory Work");
+    }
+
+    [Fact]
     public void Writes_a_pending_update_through_the_repository()
     {
         var repository = new RecordingHostsFileRepository();
@@ -350,7 +378,8 @@ public class ApplyPendingChangesUseCaseTests
         public void MoveEntryToCategory(HostEntry entry, string? targetCategory, int targetIndex)
             => throw new NotSupportedException();
 
-        public void DeleteCategory(string name) => throw new NotSupportedException();
+        public void DeleteCategory(string name)
+            => _operations.Add($"DeleteCategory {name}");
 
         private readonly List<string> _operations = new();
 
@@ -361,7 +390,9 @@ public class ApplyPendingChangesUseCaseTests
 
         public void CreateCategory(string name)
             => _operations.Add($"CreateCategory {name}");
-        public void RenameCategory(string currentName, string newName) => throw new NotSupportedException();
+
+        public void RenameCategory(string currentName, string newName)
+            => _operations.Add($"RenameCategory {currentName} -> {newName}");
 
         public void UpdateEntry(HostEntry target, HostEntry replacement)
             => _operations.Add($"Update {target} -> {replacement}");

@@ -88,6 +88,42 @@ public sealed record CreateCategoryChange(string Name) : PendingChange
 }
 
 /// <summary>
+/// A pending rename of an existing category: its marker is rewritten with the new name while its
+/// entries — and every other marker and entry — stay exactly where they are, so only the group's
+/// name changes.
+/// </summary>
+/// <param name="CurrentName">The current name of the category to rename.</param>
+/// <param name="NewName">The new name to write into the category's marker.</param>
+public sealed record RenameCategoryChange(string CurrentName, string NewName) : PendingChange
+{
+    internal override void ApplyTo(List<CategoryProjection> groups)
+        => GroupFor(groups, CurrentName).Name = NewName;
+
+    internal override void WriteTo(IHostsFileRepository repository)
+        => repository.RenameCategory(CurrentName, NewName);
+}
+
+/// <summary>
+/// A pending deletion of a category: its marker is removed while the entries below it are kept and
+/// fall back into "No category", appended after the existing uncategorized entries — mirroring the
+/// on-disk delete, which relocates the block into the region before the first marker. Every other
+/// category and its entries are left in place.
+/// </summary>
+/// <param name="Name">The name of the category to delete.</param>
+public sealed record DeleteCategoryChange(string Name) : PendingChange
+{
+    internal override void ApplyTo(List<CategoryProjection> groups)
+    {
+        var category = GroupFor(groups, Name);
+        GroupFor(groups, null).Entries.AddRange(category.Entries);
+        groups.Remove(category);
+    }
+
+    internal override void WriteTo(IHostsFileRepository repository)
+        => repository.DeleteCategory(Name);
+}
+
+/// <summary>
 /// A pending replacement of an existing entry with an edited one, keeping its position — and so
 /// its order and category membership — unchanged.
 /// </summary>

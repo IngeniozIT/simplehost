@@ -136,6 +136,52 @@ public sealed class MainViewModel : ViewModelBase
         => _pendingChanges.AddEntry(new HostEntry(ipAddress, hostname, comment), category);
 
     /// <summary>
+    /// Stages creating a new, empty category named <paramref name="name"/> as a pending change.
+    /// Nothing is written to the file until the pending changes are applied.
+    /// </summary>
+    public void CreateCategory(string name) => _pendingChanges.CreateCategory(name);
+
+    /// <summary>
+    /// Stages renaming the category <paramref name="currentName"/> to <paramref name="newName"/> as
+    /// a pending change, keeping its entries where they are. Nothing is written to the file until the
+    /// pending changes are applied.
+    /// </summary>
+    public void RenameCategory(string currentName, string newName)
+        => _pendingChanges.RenameCategory(currentName, newName);
+
+    /// <summary>
+    /// Stages deleting the category <paramref name="name"/> as a pending change; the entries it held
+    /// fall back to "No category". Nothing is written to the file until the pending changes are
+    /// applied.
+    /// </summary>
+    public void DeleteCategory(string name) => _pendingChanges.DeleteCategory(name);
+
+    /// <summary>
+    /// Stages moving <paramref name="entry"/> into <paramref name="category"/> (or "No category"
+    /// when it is <c>null</c>) as a pending change, appended as the last entry of the target
+    /// category. Moving it into the category it is already shown under stages nothing. The entry
+    /// keeps its content and active-or-disabled status. Nothing is written to the file until the
+    /// pending changes are applied.
+    /// </summary>
+    public void MoveEntry(HostEntryViewModel entry, string? category)
+    {
+        if (category == CurrentCategoryOf(entry))
+        {
+            return;
+        }
+
+        _pendingChanges.MoveEntry(ToHostEntry(entry), category);
+    }
+
+    /// <summary>
+    /// Stages reordering <paramref name="entry"/> to the zero-based position
+    /// <paramref name="targetIndex"/> among the entries of the category it belongs to as a pending
+    /// change. Nothing is written to the file until the pending changes are applied.
+    /// </summary>
+    public void ReorderEntry(HostEntryViewModel entry, int targetIndex)
+        => _pendingChanges.ReorderEntry(ToHostEntry(entry), targetIndex);
+
+    /// <summary>
     /// Stages the edits to <paramref name="entry"/> as pending changes: when its IP address,
     /// hostname or comment change, an in-place replacement is recorded; when its
     /// <paramref name="category"/> differs from the category it is currently shown under, a move into

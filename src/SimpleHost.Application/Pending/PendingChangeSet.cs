@@ -36,6 +36,35 @@ public sealed class PendingChangeSet
         _changes.Add(new CreateCategoryChange(name.Trim()));
     }
 
+    /// <summary>
+    /// Records renaming the category <paramref name="currentName"/> to <paramref name="newName"/>
+    /// (trimmed of surrounding whitespace), which projects as the same group under its new name with
+    /// its entries unchanged.
+    /// </summary>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="currentName"/> or <paramref name="newName"/> is <c>null</c>,
+    /// empty, or whitespace only.
+    /// </exception>
+    public void RenameCategory(string currentName, string newName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(currentName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+        _changes.Add(new RenameCategoryChange(currentName, newName.Trim()));
+    }
+
+    /// <summary>
+    /// Records deleting the category <paramref name="name"/>, which projects as removing that group
+    /// and moving its entries back into "No category".
+    /// </summary>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="name"/> is <c>null</c>, empty, or whitespace only.
+    /// </exception>
+    public void DeleteCategory(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        _changes.Add(new DeleteCategoryChange(name));
+    }
+
     /// <summary>Records replacing <paramref name="target"/> in place with <paramref name="replacement"/>.</summary>
     public void UpdateEntry(HostEntry target, HostEntry replacement)
         => _changes.Add(new UpdateEntryChange(target, replacement));

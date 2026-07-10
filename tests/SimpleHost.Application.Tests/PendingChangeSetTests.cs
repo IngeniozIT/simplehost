@@ -315,4 +315,153 @@ public class PendingChangeSetTests
         Should.Throw<InvalidOperationException>(() => changes.ApplyTo(Grouping(NoCategory())))
             .Message.ShouldContain("No entry found matching");
     }
+
+    [Fact]
+    public void Records_a_category_rename_as_a_pending_change()
+    {
+        var changes = new PendingChangeSet();
+
+        changes.RenameCategory("Work", "Office");
+
+        changes.HasChanges.ShouldBeTrue();
+        changes.Changes.ShouldHaveSingleItem().ShouldBeOfType<RenameCategoryChange>();
+    }
+
+    [Fact]
+    public void Projects_a_renamed_category_keeping_its_entries_in_place()
+    {
+        var current = Grouping(
+            NoCategory(new HostEntry("127.0.0.1", "web.test")),
+            new CategoryGroup("Work", new[] { new HostEntry("10.0.0.1", "api.test") }));
+        var changes = new PendingChangeSet();
+        changes.RenameCategory("Work", "Office");
+
+        var projected = changes.ApplyTo(current);
+
+        projected.Select(group => group.Name).ShouldBe(new string?[] { null, "Office" });
+        EntriesUnder(projected, "Office").ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("10.0.0.1", "api.test"));
+        EntriesUnder(projected, null).ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("127.0.0.1", "web.test"));
+    }
+
+    [Fact]
+    public void Projects_a_renamed_category_under_its_trimmed_new_name()
+    {
+        var changes = new PendingChangeSet();
+        changes.RenameCategory("Work", "  Office  ");
+
+        var projected = changes.ApplyTo(Grouping(
+            NoCategory(),
+            new CategoryGroup("Work", Array.Empty<HostEntry>())));
+
+        projected.Select(group => group.Name).ShouldBe(new string?[] { null, "Office" });
+    }
+
+    [Fact]
+    public void Throws_when_renaming_a_category_that_has_no_marker()
+    {
+        var changes = new PendingChangeSet();
+        changes.RenameCategory("Missing", "Office");
+
+        Should.Throw<InvalidOperationException>(() => changes.ApplyTo(Grouping(NoCategory())))
+            .Message.ShouldContain("No category marker found for 'Missing'.");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Rejects_renaming_when_the_current_name_is_empty_or_whitespace(string currentName)
+    {
+        var changes = new PendingChangeSet();
+
+        Should.Throw<ArgumentException>(() => changes.RenameCategory(currentName, "Office"));
+        changes.HasChanges.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Rejects_renaming_to_an_empty_or_whitespace_name(string newName)
+    {
+        var changes = new PendingChangeSet();
+
+        Should.Throw<ArgumentException>(() => changes.RenameCategory("Work", newName));
+        changes.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Records_a_category_deletion_as_a_pending_change()
+    {
+        var changes = new PendingChangeSet();
+
+        changes.DeleteCategory("Work");
+
+        changes.HasChanges.ShouldBeTrue();
+        changes.Changes.ShouldHaveSingleItem().ShouldBeOfType<DeleteCategoryChange>();
+    }
+
+    [Fact]
+    public void Projects_a_deleted_category_reparenting_its_entries_into_no_category()
+    {
+        var current = Grouping(
+            NoCategory(new HostEntry("127.0.0.1", "web.test")),
+            new CategoryGroup("Work", new[]
+            {
+                new HostEntry("10.0.0.1", "api.test"),
+                new HostEntry("10.0.0.2", "db.test"),
+            }));
+        var changes = new PendingChangeSet();
+        changes.DeleteCategory("Work");
+
+        var projected = changes.ApplyTo(current);
+
+        projected.Select(group => group.Name).ShouldBe(new string?[] { null });
+        EntriesUnder(projected, null).ShouldBe(new[]
+        {
+            new HostEntry("127.0.0.1", "web.test"),
+            new HostEntry("10.0.0.1", "api.test"),
+            new HostEntry("10.0.0.2", "db.test"),
+        });
+    }
+
+    [Fact]
+    public void Leaves_other_categories_in_place_when_deleting_one()
+    {
+        var current = Grouping(
+            NoCategory(),
+            new CategoryGroup("Work", new[] { new HostEntry("10.0.0.1", "api.test") }),
+            new CategoryGroup("Home", new[] { new HostEntry("192.168.0.1", "nas.test") }));
+        var changes = new PendingChangeSet();
+        changes.DeleteCategory("Work");
+
+        var projected = changes.ApplyTo(current);
+
+        projected.Select(group => group.Name).ShouldBe(new string?[] { null, "Home" });
+        EntriesUnder(projected, "Home").ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("192.168.0.1", "nas.test"));
+        EntriesUnder(projected, null).ShouldHaveSingleItem()
+            .ShouldBe(new HostEntry("10.0.0.1", "api.test"));
+    }
+
+    [Fact]
+    public void Throws_when_deleting_a_category_that_has_no_marker()
+    {
+        var changes = new PendingChangeSet();
+        changes.DeleteCategory("Missing");
+
+        Should.Throw<InvalidOperationException>(() => changes.ApplyTo(Grouping(NoCategory())))
+            .Message.ShouldContain("No category marker found for 'Missing'.");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Rejects_deleting_a_category_with_an_empty_or_whitespace_name(string name)
+    {
+        var changes = new PendingChangeSet();
+
+        Should.Throw<ArgumentException>(() => changes.DeleteCategory(name));
+        changes.HasChanges.ShouldBeFalse();
+    }
 }

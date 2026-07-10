@@ -17,8 +17,11 @@ internal sealed class CategoryProjection
         Entries = entries.ToList();
     }
 
-    /// <summary>The category name, or <c>null</c> for the "No category" region.</summary>
-    internal string? Name { get; }
+    /// <summary>
+    /// The category name, or <c>null</c> for the "No category" region. Settable so a pending rename
+    /// can rewrite the marker in place while its entries stay put.
+    /// </summary>
+    internal string? Name { get; set; }
 
     /// <summary>The entries under this category, in file order, mutated as changes are applied.</summary>
     internal List<HostEntry> Entries { get; }

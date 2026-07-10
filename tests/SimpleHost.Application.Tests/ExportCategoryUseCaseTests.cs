@@ -122,6 +122,9 @@ public class ExportCategoryUseCaseTests
             ExportedGroup = group;
             ExportedPath = destinationPath;
         }
+
+        public void ExportConfiguration(IReadOnlyList<CategoryGroup> groups, string destinationPath)
+            => throw new NotSupportedException();
     }
 
     private sealed class FakeHostsFileRepository(params CategoryGroup[] groups) : IHostsFileRepository

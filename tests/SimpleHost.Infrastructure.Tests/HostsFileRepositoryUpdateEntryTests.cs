@@ -49,6 +49,30 @@ public sealed class HostsFileRepositoryUpdateEntryTests : IDisposable
     }
 
     [Fact]
+    public void Adds_an_inline_comment_to_a_line_that_had_none()
+    {
+        File.WriteAllText(_path, "127.0.0.1 web.myapp.test\n");
+
+        NewRepository().UpdateEntry(
+            new HostEntry("127.0.0.1", "web.myapp.test"),
+            new HostEntry("127.0.0.1", "web.myapp.test", "staging box"));
+
+        File.ReadAllText(_path).ShouldBe("127.0.0.1 web.myapp.test # staging box\n");
+    }
+
+    [Fact]
+    public void Removes_the_inline_comment_when_the_replacement_has_none()
+    {
+        File.WriteAllText(_path, "0.0.0.0 ads.example.com # blocked\n");
+
+        NewRepository().UpdateEntry(
+            new HostEntry("0.0.0.0", "ads.example.com", "blocked"),
+            new HostEntry("0.0.0.0", "ads.example.com"));
+
+        File.ReadAllText(_path).ShouldBe("0.0.0.0 ads.example.com\n");
+    }
+
+    [Fact]
     public void Keeps_a_disabled_entry_commented_out_after_the_update()
     {
         File.WriteAllText(_path, "# 0.0.0.0 ads.example.com\n");

@@ -8,8 +8,8 @@
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
-        Background="{DynamicResource WindowBackgroundBrush}"
-        Foreground="{DynamicResource WindowForegroundBrush}">
+        Background="{DynamicResource ApplicationBackgroundBrush}"
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}">
 
     <!-- Pick the destination category for a move. The list is filled in code-behind from the current
          groups, with "No category" offered as the first option; OK is enabled once a row is picked. -->

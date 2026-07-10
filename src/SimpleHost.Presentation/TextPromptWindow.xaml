@@ -7,8 +7,8 @@
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
-        Background="{DynamicResource WindowBackgroundBrush}"
-        Foreground="{DynamicResource WindowForegroundBrush}">
+        Background="{DynamicResource ApplicationBackgroundBrush}"
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}">
 
     <!-- A single-line text prompt, used for naming a category on rename. OK is enabled only while the
          box holds non-blank text; confirming closes with DialogResult=true. -->

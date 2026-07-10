@@ -12,6 +12,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\SimpleHost.Application\SimpleHost.Application.csproj" />
     <ProjectReference Include="..\SimpleHost.Infrastructure\SimpleHost.Infrastructure.csproj" />
     <ProjectReference Include="..\SimpleHost.Presentation.ViewModels\SimpleHost.Presentation.ViewModels.csproj" />

@@ -1,4 +1,16 @@
 <Application x:Class="SimpleHost.Presentation.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             ShutdownMode="OnExplicitShutdown" />
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- WPF-UI Fluent theme. The declared theme is overwritten at startup by
+                     ApplicationThemeManager.ApplySystemTheme() so the app follows Windows. -->
+                <ui:ThemesDictionary Theme="Dark" />
+                <ui:ControlsDictionary />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

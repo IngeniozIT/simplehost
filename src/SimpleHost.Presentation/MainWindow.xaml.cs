@@ -20,7 +20,7 @@ namespace SimpleHost.Presentation;
 /// Every action drives the <see cref="MainViewModel"/>'s commands; nothing is written to the file
 /// until the pending changes are applied.
 /// </summary>
-public partial class MainWindow : Window
+public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 {
     private readonly MainViewModel _viewModel;
     private System.Windows.Point _dragStartPoint;
@@ -49,6 +49,16 @@ public partial class MainWindow : Window
         // callbacks; surface each as a modal warning so the user learns why nothing happened.
         _viewModel.SubscriptionOperationFailed = ReportOperationFailure;
         _viewModel.ImportExportFailed = ReportOperationFailure;
+    }
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        // SimpleHost stays running in the tray, so closing the window hides it rather than destroying
+        // it — the same window (and its theme watcher) is re-shown from the tray's "Open" action. The
+        // app quits only through the tray's Exit action.
+        e.Cancel = true;
+        Hide();
+        base.OnClosing(e);
     }
 
     // --- Search and category filter ----------------------------------------------------------
@@ -95,7 +105,18 @@ public partial class MainWindow : Window
 
     // --- Adding, editing and deleting a single entry -----------------------------------------
 
-    private void OnAddEntryClick(object sender, RoutedEventArgs e) => _viewModel.SaveNewEntry();
+    private void OnAddEntryClick(object sender, RoutedEventArgs e)
+    {
+        // Adding reuses the same modal form as editing, bound to the view-model's new-entry draft.
+        // Reset it so the form opens empty, and stage the entry only when the user confirms a valid one.
+        _viewModel.NewEntry.Reset();
+
+        var dialog = new EntryEditWindow(_viewModel.NewEntry) { Owner = this, Title = "Add entry" };
+        if (dialog.ShowDialog() == true)
+        {
+            _viewModel.SaveNewEntry();
+        }
+    }
 
     private void OnEditEntryClick(object sender, RoutedEventArgs e)
     {
@@ -147,8 +168,11 @@ public partial class MainWindow : Window
 
     // --- Enabling, disabling and moving a single entry ---------------------------------------
 
-    private void OnToggleEntryStatusClick(object sender, RoutedEventArgs e)
+    private void OnRowToggle(object sender, RoutedEventArgs e)
     {
+        // The row's toggle switch is bound one-way to IsActive, so this fires only on a genuine user
+        // flip (never when the binding paints the current state). Stage the opposite of the entry's
+        // current state; the resulting refresh rebuilds the row so the switch reflects the new value.
         if (EntryOf(sender) is not { } entry)
         {
             return;

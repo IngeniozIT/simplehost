@@ -6,8 +6,8 @@
         Width="680"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
-        Background="{DynamicResource WindowBackgroundBrush}"
-        Foreground="{DynamicResource WindowForegroundBrush}">
+        Background="{DynamicResource ApplicationBackgroundBrush}"
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}">
 
     <!-- A read-only preview of what the hosts file will look like once the pending changes are
          applied, shown as a diff: added lines marked "+", removed lines marked "-", and the
@@ -41,7 +41,7 @@
                        Visibility="Collapsed" />
 
             <Border x:Name="DiffPanel"
-                    BorderBrush="{DynamicResource WindowForegroundBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1"
                     CornerRadius="4"
                     Padding="8">
@@ -91,12 +91,12 @@
                                     <!-- Added: green, marked with a plus. -->
                                     <DataTrigger Binding="{Binding Kind}" Value="Added">
                                         <Setter TargetName="Marker" Property="Text" Value="+" />
-                                        <Setter TargetName="LineGrid" Property="TextBlock.Foreground" Value="#3FB950" />
+                                        <Setter TargetName="LineGrid" Property="TextBlock.Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
                                     </DataTrigger>
                                     <!-- Removed: red, marked with a minus. -->
                                     <DataTrigger Binding="{Binding Kind}" Value="Removed">
                                         <Setter TargetName="Marker" Property="Text" Value="&#8722;" />
-                                        <Setter TargetName="LineGrid" Property="TextBlock.Foreground" Value="#E5534B" />
+                                        <Setter TargetName="LineGrid" Property="TextBlock.Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
                                     </DataTrigger>
                                     <!-- Unchanged: no marker, dimmed as context. -->
                                     <DataTrigger Binding="{Binding Kind}" Value="Unchanged">

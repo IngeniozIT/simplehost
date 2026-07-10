@@ -8,8 +8,8 @@
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
-        Background="{DynamicResource WindowBackgroundBrush}"
-        Foreground="{DynamicResource WindowForegroundBrush}">
+        Background="{DynamicResource ApplicationBackgroundBrush}"
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}">
 
     <!--
         Modal editor for one existing entry. Its DataContext is the main view-model's EditDraft

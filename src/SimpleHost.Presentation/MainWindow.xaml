@@ -1,407 +1,450 @@
-<Window x:Class="SimpleHost.Presentation.MainWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:SimpleHost.Presentation"
-        Title="SimpleHost"
-        Height="600"
-        Width="900"
-        Background="{DynamicResource WindowBackgroundBrush}"
-        Foreground="{DynamicResource WindowForegroundBrush}">
+<ui:FluentWindow x:Class="SimpleHost.Presentation.MainWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:local="clr-namespace:SimpleHost.Presentation"
+                 Title="SimpleHost"
+                 Height="680"
+                 Width="980"
+                 MinHeight="480"
+                 MinWidth="720"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round">
 
-    <Window.Resources>
+    <ui:FluentWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <local:CountToVisibilityConverter x:Key="CountToVisibility" />
+    </ui:FluentWindow.Resources>
 
-        <!-- One warning line inside a warnings panel. -->
-        <Style x:Key="WarningLineStyle" TargetType="TextBlock">
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="Margin" Value="0,1,0,0" />
-        </Style>
-    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-    <DockPanel>
+        <ui:TitleBar Grid.Row="0" Title="SimpleHost" />
 
-        <!-- Pending-changes toolbar: shown only while changes are staged. It reports how many changes
-             are waiting and drives the view-model to preview the diff, apply them to the hosts file, or
-             discard them. Apply and Discard bind straight to the view-model's commands, which stay
-             enabled only while there are pending changes. -->
-        <Border DockPanel.Dock="Top"
-                Visibility="{Binding HasPendingChanges, Converter={StaticResource BoolToVisibility}}"
-                BorderBrush="{DynamicResource WindowForegroundBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="12,8">
-            <DockPanel>
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <Button Content="Preview"
-                            Padding="10,3"
-                            IsEnabled="{Binding HasPendingChanges}"
-                            Click="OnPreviewPendingChangesClick" />
-                    <Button Content="Apply"
-                            Margin="8,0,0,0"
-                            Padding="10,3"
-                            Command="{Binding ApplyCommand}" />
-                    <Button Content="Discard"
-                            Margin="8,0,0,0"
-                            Padding="10,3"
-                            Command="{Binding DiscardCommand}" />
-                </StackPanel>
-                <TextBlock VerticalAlignment="Center"
-                           FontWeight="SemiBold"
-                           Text="{Binding PendingChangeCount, StringFormat='{}{0} pending change(s) not yet written'}" />
-            </DockPanel>
-        </Border>
+        <TabControl Grid.Row="1" Margin="12,0,12,12">
 
-        <!-- Conflict and duplicate warnings, each shown only when there is something to warn about. -->
-        <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0">
+            <!-- ================= ENTRIES ================= -->
+            <TabItem Header="Entries">
+                <Grid Margin="0,12,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-            <Border Visibility="{Binding HasHostnameConflicts, Converter={StaticResource BoolToVisibility}}"
-                    BorderBrush="#E5534B"
-                    BorderThickness="1"
-                    CornerRadius="4"
-                    Padding="10,8"
-                    Margin="0,0,0,8">
-                <StackPanel>
-                    <TextBlock Text="Hostname conflicts"
-                               FontWeight="SemiBold"
-                               Foreground="#E5534B" />
-                    <ItemsControl ItemsSource="{Binding HostnameConflictWarnings}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}" Style="{StaticResource WarningLineStyle}" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
+                    <!-- Command bar: search + filter + add. -->
+                    <Grid Grid.Row="0" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <ui:TextBox x:Name="HostnameSearchBox"
+                                        Width="240"
+                                        Icon="{ui:SymbolIcon Search24}"
+                                        PlaceholderText="Search hostname"
+                                        Text="{Binding HostnameQuery, UpdateSourceTrigger=PropertyChanged}" />
+                            <ui:TextBox x:Name="IpSearchBox"
+                                        Width="150"
+                                        Margin="8,0,0,0"
+                                        PlaceholderText="IP address"
+                                        Text="{Binding IpAddressQuery, UpdateSourceTrigger=PropertyChanged}" />
+                            <ComboBox x:Name="CategoryFilterBox"
+                                      Width="170"
+                                      Margin="8,0,0,0"
+                                      ItemsSource="{Binding Groups}"
+                                      DisplayMemberPath="DisplayName"
+                                      ToolTip="Show only one category"
+                                      SelectionChanged="OnCategoryFilterChanged" />
+                            <Button Content="Clear"
+                                    Margin="8,0,0,0"
+                                    ToolTip="Clear the search and category filter"
+                                    Click="OnClearFiltersClick" />
+                        </StackPanel>
+                        <ui:Button Grid.Column="1"
+                                   Appearance="Primary"
+                                   Icon="{ui:SymbolIcon Add24}"
+                                   Content="Add entry"
+                                   Click="OnAddEntryClick" />
+                    </Grid>
 
-            <Border Visibility="{Binding HasDuplicateEntries, Converter={StaticResource BoolToVisibility}}"
-                    BorderBrush="#D9822B"
-                    BorderThickness="1"
-                    CornerRadius="4"
-                    Padding="10,8"
-                    Margin="0,0,0,8">
-                <StackPanel>
-                    <TextBlock Text="Duplicate entries"
-                               FontWeight="SemiBold"
-                               Foreground="#D9822B" />
-                    <ItemsControl ItemsSource="{Binding DuplicateEntryWarnings}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}" Style="{StaticResource WarningLineStyle}" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
+                    <!-- Pending-changes bar: shown only while changes are staged. -->
+                    <ui:Card Grid.Row="1"
+                             Margin="0,0,0,12"
+                             Visibility="{Binding HasPendingChanges, Converter={StaticResource BoolToVisibility}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <ui:SymbolIcon Symbol="Edit24" Margin="0,0,10,0" />
+                                <TextBlock VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           Text="{Binding PendingChangeCount, StringFormat='{}{0} unsaved change(s)'}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Content="Preview"
+                                        IsEnabled="{Binding HasPendingChanges}"
+                                        Click="OnPreviewPendingChangesClick" />
+                                <Button Content="Discard"
+                                        Margin="8,0,0,0"
+                                        Command="{Binding DiscardCommand}" />
+                                <ui:Button Content="Apply"
+                                           Appearance="Primary"
+                                           Margin="8,0,0,0"
+                                           Command="{Binding ApplyCommand}" />
+                            </StackPanel>
+                        </Grid>
+                    </ui:Card>
 
-        </StackPanel>
+                    <!-- Conflict and duplicate warnings, each shown only when relevant. -->
+                    <StackPanel Grid.Row="2">
+                        <ui:Card Margin="0,0,0,12"
+                                 Visibility="{Binding HasHostnameConflicts, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                    <ui:SymbolIcon Symbol="Warning24"
+                                                   Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                                   Margin="0,0,8,0" />
+                                    <TextBlock Text="Hostname conflicts"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                                </StackPanel>
+                                <ItemsControl ItemsSource="{Binding HostnameConflictWarnings}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,1,0,0" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </ui:Card>
+                        <ui:Card Margin="0,0,0,12"
+                                 Visibility="{Binding HasDuplicateEntries, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                    <ui:SymbolIcon Symbol="Warning24"
+                                                   Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                                   Margin="0,0,8,0" />
+                                    <TextBlock Text="Duplicate entries"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                                </StackPanel>
+                                <ItemsControl ItemsSource="{Binding DuplicateEntryWarnings}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,1,0,0" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </ui:Card>
+                    </StackPanel>
 
-        <!-- Search and category filter: narrow the displayed list by hostname, IP address or category.
-             The hostname and IP boxes drive the view-model's search queries as the user types; the
-             category box drives its category filter. The list bound below shows VisibleGroups, which
-             the view-model keeps narrowed to what matches. -->
-        <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0" Orientation="Horizontal">
-            <TextBlock Text="Host:" VerticalAlignment="Center" Margin="0,0,6,0" />
-            <TextBox x:Name="HostnameSearchBox"
-                     Width="170"
-                     VerticalAlignment="Center"
-                     ToolTip="Narrow the list to entries whose hostname contains this text"
-                     Text="{Binding HostnameQuery, UpdateSourceTrigger=PropertyChanged}" />
-            <TextBlock Text="IP:" VerticalAlignment="Center" Margin="14,0,6,0" />
-            <TextBox x:Name="IpSearchBox"
-                     Width="140"
-                     VerticalAlignment="Center"
-                     ToolTip="Narrow the list to entries whose IP address contains this text"
-                     Text="{Binding IpAddressQuery, UpdateSourceTrigger=PropertyChanged}" />
-            <TextBlock Text="Category:" VerticalAlignment="Center" Margin="14,0,6,0" />
-            <ComboBox x:Name="CategoryFilterBox"
-                      Width="160"
-                      VerticalAlignment="Center"
-                      ItemsSource="{Binding Groups}"
-                      DisplayMemberPath="DisplayName"
-                      ToolTip="Narrow the list to a single category"
-                      SelectionChanged="OnCategoryFilterChanged" />
-            <Button Content="Clear filters"
-                    Margin="14,0,0,0"
-                    Padding="8,2"
-                    Click="OnClearFiltersClick" />
-        </StackPanel>
+                    <!-- Contextual bulk-action bar: shown only while entries are selected. -->
+                    <ui:Card Grid.Row="3"
+                             Margin="0,0,0,12"
+                             Visibility="{Binding SelectedEntries.Count, Converter={StaticResource CountToVisibility}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       FontWeight="SemiBold"
+                                       Text="{Binding SelectedEntries.Count, StringFormat='{}{0} selected'}" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Content="Enable" Click="OnEnableSelectedClick" />
+                                <Button Content="Disable" Margin="8,0,0,0" Click="OnDisableSelectedClick" />
+                                <Button Content="Move to…" Margin="8,0,0,0" Click="OnMoveSelectedClick" />
+                                <Button Content="Delete" Margin="8,0,0,0" Click="OnDeleteSelectedClick" />
+                            </StackPanel>
+                        </Grid>
+                    </ui:Card>
 
-        <!-- Category management and bulk actions. Creating a category stages an empty category; the
-             bulk buttons act on the current multi-selection through the view-model. -->
-        <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0">
-            <StackPanel Orientation="Horizontal">
-                <TextBlock Text="New category:" VerticalAlignment="Center" Margin="0,0,8,0" />
-                <TextBox x:Name="NewCategoryBox" Width="200" VerticalAlignment="Center" />
-                <Button Content="Create category"
-                        Margin="8,0,0,0"
-                        Padding="8,2"
-                        Click="OnCreateCategoryClick" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                <TextBlock Text="With selected:" VerticalAlignment="Center" Margin="0,0,8,0" />
-                <Button Content="Enable" Padding="8,2" Click="OnEnableSelectedClick" />
-                <Button Content="Disable" Margin="6,0,0,0" Padding="8,2" Click="OnDisableSelectedClick" />
-                <Button Content="Move to…" Margin="6,0,0,0" Padding="8,2" Click="OnMoveSelectedClick" />
-                <Button Content="Delete" Margin="6,0,0,0" Padding="8,2" Click="OnDeleteSelectedClick" />
-            </StackPanel>
-        </StackPanel>
+                    <!-- The grouped host entries: the "No category" group first, then each category. -->
+                    <ScrollViewer Grid.Row="4"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding VisibleGroups}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,0,0,18">
 
-        <!-- Profiles: named presets of the enabled categories. The combo lists every saved profile
-             (the view-model's Profiles collection); "Switch to" recalls the selected one, staging the
-             pending changes that enable its categories and disable the rest, to be written through the
-             pending-changes Apply like any other edit. The name box plus "Save profile" captures which
-             categories are enabled right now under that name, replacing any profile already saved under
-             it; a blank name saves nothing. Every action drives the view-model's profile surface. -->
-        <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0" Orientation="Horizontal">
-            <TextBlock Text="Profiles:" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <ComboBox x:Name="ProfilesBox"
-                      Width="180"
-                      VerticalAlignment="Center"
-                      ItemsSource="{Binding Profiles}"
-                      DisplayMemberPath="Name"
-                      SelectedValuePath="Name"
-                      ToolTip="The saved profiles you can switch to" />
-            <Button Content="Switch to"
-                    Margin="8,0,0,0"
-                    Padding="8,2"
-                    Click="OnSwitchProfileClick" />
-            <TextBlock Text="Save as:" VerticalAlignment="Center" Margin="16,0,6,0" />
-            <TextBox x:Name="ProfileNameBox"
-                     Width="150"
-                     VerticalAlignment="Center"
-                     ToolTip="Name to save the currently enabled categories under" />
-            <Button Content="Save profile"
-                    Margin="8,0,0,0"
-                    Padding="8,2"
-                    Click="OnSaveProfileClick" />
-        </StackPanel>
-
-        <!-- Remote subscriptions: subscribe a URL into a dedicated category, refresh that one on demand,
-             or refresh every kept subscription at once. Each drives the view-model, which validates and
-             fetches before it writes; a blank URL or category, a category that already exists (when
-             subscribing) or is missing (when refreshing), or a list that cannot be fetched changes
-             nothing and is reported through the failure callback wired in the constructor. -->
-        <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0" Orientation="Horizontal">
-            <TextBlock Text="Subscription URL:" VerticalAlignment="Center" Margin="0,0,6,0" />
-            <TextBox x:Name="SubscriptionUrlBox"
-                     Width="200"
-                     VerticalAlignment="Center"
-                     ToolTip="The remote hosts list to subscribe to or refresh" />
-            <TextBlock Text="Category:" VerticalAlignment="Center" Margin="12,0,6,0" />
-            <TextBox x:Name="SubscriptionCategoryBox"
-                     Width="120"
-                     VerticalAlignment="Center"
-                     ToolTip="The category the subscription's entries live in" />
-            <Button Content="Subscribe" Margin="8,0,0,0" Padding="8,2" Click="OnSubscribeClick" />
-            <Button Content="Refresh" Margin="6,0,0,0" Padding="8,2" Click="OnRefreshSubscriptionClick" />
-            <Button Content="Refresh all" Margin="6,0,0,0" Padding="8,2" Click="OnRefreshAllSubscriptionsClick" />
-        </StackPanel>
-
-        <!-- Import and export external hosts files. The category combo picks the target of an import and
-             the source of a single-category export ("No category" for the pinned group); file paths are
-             chosen through the standard open/save dialogs. Import and export-category need a category
-             selected; export-all needs none. The view-model validates before it reads or writes and
-             reports any refusal through the failure callback wired in the constructor. -->
-        <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0" Orientation="Horizontal">
-            <TextBlock Text="Transfer category:" VerticalAlignment="Center" Margin="0,0,6,0" />
-            <ComboBox x:Name="TransferCategoryBox"
-                      Width="160"
-                      VerticalAlignment="Center"
-                      ItemsSource="{Binding Groups}"
-                      DisplayMemberPath="DisplayName"
-                      ToolTip="The category to import into or to export" />
-            <Button Content="Import into…" Margin="8,0,0,0" Padding="8,2" Click="OnImportClick" />
-            <Button Content="Export category…" Margin="6,0,0,0" Padding="8,2" Click="OnExportCategoryClick" />
-            <Button Content="Export all…" Margin="6,0,0,0" Padding="8,2" Click="OnExportConfigurationClick" />
-        </StackPanel>
-
-        <!-- Settings: the flush-DNS-after-saving toggle. When on, a successful apply that actually wrote
-             changes is followed by a flush of the system DNS cache so name lookups pick up the change at
-             once. Bound two-way to the view-model's setting, which is off by default. -->
-        <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0" Orientation="Horizontal">
-            <TextBlock Text="Settings:" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <CheckBox x:Name="FlushDnsCheckBox"
-                      VerticalAlignment="Center"
-                      Content="Flush the DNS cache after saving"
-                      IsChecked="{Binding FlushDnsAfterSaving}"
-                      ToolTip="After a successful save that wrote changes, flush the system DNS cache so lookups pick up the change immediately" />
-        </StackPanel>
-
-        <!-- Add a new entry: the shared entry form bound to the view-model's new-entry draft, with
-             its inline IP/hostname validation, and an Add button enabled only while the draft is valid. -->
-        <Border DockPanel.Dock="Bottom"
-                BorderBrush="{DynamicResource WindowForegroundBrush}"
-                BorderThickness="0,1,0,0"
-                Padding="12"
-                Opacity="1">
-            <StackPanel>
-                <TextBlock Text="Add entry"
-                           FontWeight="SemiBold"
-                           Margin="0,0,0,8" />
-                <local:EntryFormControl DataContext="{Binding NewEntry}" />
-                <Button Content="Add"
-                        HorizontalAlignment="Right"
-                        MinWidth="90"
-                        Padding="8,3"
-                        Margin="0,10,0,0"
-                        IsEnabled="{Binding NewEntry.IsValid}"
-                        Click="OnAddEntryClick" />
-            </StackPanel>
-        </Border>
-
-        <!-- The grouped host entries: the "No category" group first, then each category, in file order. -->
-        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      Padding="12">
-            <ItemsControl ItemsSource="{Binding VisibleGroups}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Margin="0,0,0,16">
-
-                            <!-- Category header: its name plus per-category actions. Dropping an entry
-                                 here moves it into this category. -->
-                            <Border BorderBrush="{DynamicResource WindowForegroundBrush}"
-                                    BorderThickness="0,0,0,1"
-                                    Padding="0,0,0,4"
-                                    Margin="0,0,0,4"
-                                    Opacity="0.85"
-                                    Background="Transparent"
-                                    AllowDrop="True"
-                                    DragOver="OnEntryDragOver"
-                                    Drop="OnCategoryDrop">
-                                <DockPanel>
-                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                        <Button Content="Enable all" Padding="6,1" Click="OnEnableCategoryClick" />
-                                        <Button Content="Disable all" Margin="6,0,0,0" Padding="6,1" Click="OnDisableCategoryClick" />
-                                        <Button x:Name="RenameCategoryButton"
-                                                Content="Rename" Margin="6,0,0,0" Padding="6,1" Click="OnRenameCategoryClick" />
-                                        <Button x:Name="DeleteCategoryButton"
-                                                Content="Delete" Margin="6,0,0,0" Padding="6,1" Click="OnDeleteCategoryClick" />
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding DisplayName}"
-                                               FontSize="15"
-                                               FontWeight="Bold"
-                                               VerticalAlignment="Center" />
-                                </DockPanel>
-                            </Border>
-
-                            <!-- Entries in this category. -->
-                            <ItemsControl ItemsSource="{Binding Entries}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border x:Name="Row" Padding="2,3"
+                                        <!-- Category header: name, count, and per-category actions.
+                                             Dropping an entry here moves it into this category. -->
+                                        <Border BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                                BorderThickness="0,0,0,1"
+                                                Padding="2,0,2,6"
+                                                Margin="0,0,0,6"
                                                 Background="Transparent"
                                                 AllowDrop="True"
-                                                PreviewMouseLeftButtonDown="OnRowMouseDown"
-                                                PreviewMouseMove="OnRowMouseMove"
                                                 DragOver="OnEntryDragOver"
-                                                Drop="OnRowDrop">
+                                                Drop="OnCategoryDrop">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="150" />
-                                                    <ColumnDefinition Width="Auto" MinWidth="200" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-
-                                                <!-- Selection checkbox and active-versus-disabled status dot. -->
-                                                <StackPanel Grid.Column="0"
-                                                            Orientation="Horizontal"
-                                                            VerticalAlignment="Center">
-                                                    <CheckBox Margin="0,0,8,0"
-                                                              VerticalAlignment="Center"
-                                                              Checked="OnEntrySelected"
-                                                              Unchecked="OnEntryDeselected" />
-                                                    <Ellipse x:Name="StatusDot"
-                                                             Width="9"
-                                                             Height="9"
-                                                             Margin="0,0,10,0"
-                                                             VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontSize="16"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center" />
+                                                    <Border Margin="8,0,0,0"
+                                                            Padding="7,1"
+                                                            VerticalAlignment="Center"
+                                                            CornerRadius="9"
+                                                            Background="{DynamicResource ControlFillColorSecondaryBrush}">
+                                                        <TextBlock Text="{Binding Entries.Count}"
+                                                                   FontSize="11"
+                                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                    </Border>
                                                 </StackPanel>
-
-                                                <TextBlock x:Name="Ip"
-                                                           Grid.Column="1"
-                                                           Text="{Binding IpAddress}"
-                                                           FontFamily="Consolas"
-                                                           VerticalAlignment="Center" />
-
-                                                <TextBlock x:Name="Host"
-                                                           Grid.Column="2"
-                                                           Text="{Binding Hostname}"
-                                                           VerticalAlignment="Center"
-                                                           Margin="0,0,12,0" />
-
-                                                <TextBlock x:Name="Comment"
-                                                           Grid.Column="3"
-                                                           Text="{Binding Comment, StringFormat='# {0}'}"
-                                                           FontStyle="Italic"
-                                                           Opacity="0.7"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           VerticalAlignment="Center" />
-
-                                                <!-- Per-entry actions: toggle status, move to another category,
-                                                     edit through the modal editor, or delete after confirmation. -->
-                                                <StackPanel x:Name="RowActions"
-                                                            Grid.Column="4"
-                                                            Orientation="Horizontal"
-                                                            Margin="12,0,0,0"
-                                                            VerticalAlignment="Center">
-                                                    <Button x:Name="StatusToggle"
-                                                            Content="Disable"
-                                                            Padding="8,1"
-                                                            Click="OnToggleEntryStatusClick" />
-                                                    <Button Content="Move"
-                                                            Padding="8,1"
-                                                            Margin="6,0,0,0"
-                                                            Click="OnMoveEntryClick" />
-                                                    <Button Content="Edit"
-                                                            Padding="8,1"
-                                                            Margin="6,0,0,0"
-                                                            Click="OnEditEntryClick" />
-                                                    <Button Content="Delete"
-                                                            Padding="8,1"
-                                                            Margin="6,0,0,0"
-                                                            Click="OnDeleteEntryClick" />
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                    <Button Content="Enable all" Click="OnEnableCategoryClick" />
+                                                    <Button Content="Disable all" Margin="6,0,0,0" Click="OnDisableCategoryClick" />
+                                                    <Button x:Name="RenameCategoryButton"
+                                                            Content="Rename" Margin="6,0,0,0" Click="OnRenameCategoryClick" />
+                                                    <Button x:Name="DeleteCategoryButton"
+                                                            Content="Delete" Margin="6,0,0,0" Click="OnDeleteCategoryClick" />
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
 
-                                        <DataTemplate.Triggers>
-                                            <!-- Active: green dot, full-strength row, toggle offers to disable. -->
-                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                <Setter TargetName="StatusDot" Property="Fill" Value="#3FB950" />
-                                                <Setter TargetName="StatusToggle" Property="Content" Value="Disable" />
-                                            </DataTrigger>
-                                            <!-- Disabled: grey dot, dimmed row, struck-through hostname, toggle offers to enable. -->
-                                            <DataTrigger Binding="{Binding IsActive}" Value="False">
-                                                <Setter TargetName="StatusDot" Property="Fill" Value="#6E7681" />
-                                                <Setter TargetName="Row" Property="Opacity" Value="0.5" />
-                                                <Setter TargetName="Host" Property="TextDecorations" Value="Strikethrough" />
-                                                <Setter TargetName="StatusToggle" Property="Content" Value="Enable" />
-                                            </DataTrigger>
-                                            <!-- Hide the comment column when the entry has no comment. -->
-                                            <DataTrigger Binding="{Binding Comment}" Value="{x:Null}">
-                                                <Setter TargetName="Comment" Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                        </DataTemplate.Triggers>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                        <!-- Entries in this category. -->
+                                        <ItemsControl ItemsSource="{Binding Entries}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border x:Name="Row"
+                                                            Padding="6,4"
+                                                            Margin="0,1"
+                                                            CornerRadius="6"
+                                                            Background="Transparent"
+                                                            AllowDrop="True"
+                                                            PreviewMouseLeftButtonDown="OnRowMouseDown"
+                                                            PreviewMouseMove="OnRowMouseMove"
+                                                            DragOver="OnEntryDragOver"
+                                                            Drop="OnRowDrop">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="150" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
 
+                                                            <CheckBox Grid.Column="0"
+                                                                      Margin="0,0,10,0"
+                                                                      VerticalAlignment="Center"
+                                                                      ToolTip="Select for a bulk action"
+                                                                      Checked="OnEntrySelected"
+                                                                      Unchecked="OnEntryDeselected" />
+
+                                                            <ui:ToggleSwitch Grid.Column="1"
+                                                                             Margin="0,0,14,0"
+                                                                             VerticalAlignment="Center"
+                                                                             ToolTip="Enable or disable this entry"
+                                                                             IsChecked="{Binding IsActive, Mode=OneWay}"
+                                                                             Click="OnRowToggle" />
+
+                                                            <TextBlock Grid.Column="2"
+                                                                       Text="{Binding IpAddress}"
+                                                                       FontFamily="Consolas"
+                                                                       VerticalAlignment="Center" />
+
+                                                            <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="0,0,12,0">
+                                                                <TextBlock x:Name="Host" Text="{Binding Hostname}" />
+                                                                <TextBlock x:Name="Description"
+                                                                           Text="{Binding Comment}"
+                                                                           FontSize="12"
+                                                                           TextTrimming="CharacterEllipsis"
+                                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                            </StackPanel>
+
+                                                            <!-- Per-entry actions, revealed on hover to keep the row calm. -->
+                                                            <StackPanel x:Name="RowActions"
+                                                                        Grid.Column="4"
+                                                                        Orientation="Horizontal"
+                                                                        VerticalAlignment="Center"
+                                                                        Opacity="0">
+                                                                <Button Content="Edit" Click="OnEditEntryClick" />
+                                                                <Button Content="Move" Margin="6,0,0,0" Click="OnMoveEntryClick" />
+                                                                <Button Content="Delete" Margin="6,0,0,0" Click="OnDeleteEntryClick" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+
+                                                    <DataTemplate.Triggers>
+                                                        <!-- Disabled: dimmed row and struck-through hostname. -->
+                                                        <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                                            <Setter TargetName="Row" Property="Opacity" Value="0.55" />
+                                                            <Setter TargetName="Host" Property="TextDecorations" Value="Strikethrough" />
+                                                        </DataTrigger>
+                                                        <!-- Hide the description line when the entry has no comment. -->
+                                                        <DataTrigger Binding="{Binding Comment}" Value="{x:Null}">
+                                                            <Setter TargetName="Description" Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                        <!-- Reveal the row actions and highlight the row on hover. -->
+                                                        <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="RowActions" Property="Opacity" Value="1" />
+                                                            <Setter TargetName="Row" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                                        </Trigger>
+                                                    </DataTemplate.Triggers>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                    </StackPanel>
+
+                                    <DataTemplate.Triggers>
+                                        <!-- The pinned "No category" group cannot be renamed or deleted. -->
+                                        <DataTrigger Binding="{Binding IsUncategorized}" Value="True">
+                                            <Setter TargetName="RenameCategoryButton" Property="Visibility" Value="Collapsed" />
+                                            <Setter TargetName="DeleteCategoryButton" Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <!-- ================= PROFILES ================= -->
+            <TabItem Header="Profiles">
+                <StackPanel Margin="0,16,0,0" MaxWidth="560" HorizontalAlignment="Left">
+                    <TextBlock Text="Profiles" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Text="A profile is a named set of enabled categories, e.g. 'Work' or 'Home'. Switching to one enables its categories and disables the rest as pending changes." />
+
+                    <ui:Card Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Switch to a saved profile" FontWeight="SemiBold" Margin="0,0,0,6" />
+                            <StackPanel Orientation="Horizontal">
+                                <ComboBox x:Name="ProfilesBox"
+                                          Width="240"
+                                          ItemsSource="{Binding Profiles}"
+                                          DisplayMemberPath="Name"
+                                          SelectedValuePath="Name"
+                                          ToolTip="The saved profiles you can switch to" />
+                                <Button Content="Switch to" Margin="8,0,0,0" Click="OnSwitchProfileClick" />
+                            </StackPanel>
                         </StackPanel>
+                    </ui:Card>
 
-                        <DataTemplate.Triggers>
-                            <!-- The pinned "No category" group cannot be renamed or deleted. -->
-                            <DataTrigger Binding="{Binding IsUncategorized}" Value="True">
-                                <Setter TargetName="RenameCategoryButton" Property="Visibility" Value="Collapsed" />
-                                <Setter TargetName="DeleteCategoryButton" Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </DataTemplate.Triggers>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
+                    <ui:Card Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Save the current setup as a profile" FontWeight="SemiBold" Margin="0,0,0,6" />
+                            <StackPanel Orientation="Horizontal">
+                                <ui:TextBox x:Name="ProfileNameBox"
+                                            Width="240"
+                                            PlaceholderText="Profile name"
+                                            ToolTip="Name to save the currently enabled categories under" />
+                                <Button Content="Save profile" Margin="8,0,0,0" Click="OnSaveProfileClick" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ui:Card>
 
-    </DockPanel>
-</Window>
+                    <ui:Card Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Create a category" FontWeight="SemiBold" Margin="0,0,0,6" />
+                            <StackPanel Orientation="Horizontal">
+                                <ui:TextBox x:Name="NewCategoryBox"
+                                            Width="240"
+                                            PlaceholderText="Category name" />
+                                <Button Content="Create category" Margin="8,0,0,0" Click="OnCreateCategoryClick" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ui:Card>
+                </StackPanel>
+            </TabItem>
+
+            <!-- ================= SUBSCRIPTIONS ================= -->
+            <TabItem Header="Subscriptions">
+                <StackPanel Margin="0,16,0,0" MaxWidth="640" HorizontalAlignment="Left">
+                    <TextBlock Text="Remote subscriptions" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Text="Subscribe to a remote hosts list (e.g. an ad-block list). Its entries are fetched into their own category and can be refreshed on demand." />
+
+                    <ui:Card Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Add or refresh a subscription" FontWeight="SemiBold" Margin="0,0,0,6" />
+                            <StackPanel Orientation="Horizontal">
+                                <ui:TextBox x:Name="SubscriptionUrlBox"
+                                            Width="300"
+                                            PlaceholderText="https://example.com/hosts"
+                                            ToolTip="The remote hosts list to subscribe to or refresh" />
+                                <ui:TextBox x:Name="SubscriptionCategoryBox"
+                                            Width="160"
+                                            Margin="8,0,0,0"
+                                            PlaceholderText="Category"
+                                            ToolTip="The category the subscription's entries live in" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <ui:Button Content="Subscribe" Appearance="Primary" Click="OnSubscribeClick" />
+                                <ui:Button Content="Refresh" Margin="8,0,0,0" Icon="{ui:SymbolIcon ArrowSync24}" Click="OnRefreshSubscriptionClick" />
+                                <Button Content="Refresh all" Margin="8,0,0,0" Click="OnRefreshAllSubscriptionsClick" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ui:Card>
+
+                    <ItemsControl ItemsSource="{Binding SubscriptionRefreshResults}" Margin="0,12,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </TabItem>
+
+            <!-- ================= SETTINGS ================= -->
+            <TabItem Header="Settings">
+                <StackPanel Margin="0,16,0,0" MaxWidth="640" HorizontalAlignment="Left">
+                    <TextBlock Text="Settings" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8" />
+
+                    <ui:Card>
+                        <ui:ToggleSwitch IsChecked="{Binding FlushDnsAfterSaving}"
+                                         Content="Flush the DNS cache after saving"
+                                         ToolTip="After a successful save that wrote changes, flush the system DNS cache so lookups pick up the change immediately" />
+                    </ui:Card>
+
+                    <TextBlock Text="Import / export" FontSize="16" FontWeight="SemiBold" Margin="0,20,0,4" />
+                    <TextBlock TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Text="Import entries from another hosts file into a category, or export a single category or the whole configuration as a standalone hosts file." />
+                    <ui:Card Margin="0,12,0,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Category:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox x:Name="TransferCategoryBox"
+                                          Width="220"
+                                          ItemsSource="{Binding Groups}"
+                                          DisplayMemberPath="DisplayName"
+                                          ToolTip="The category to import into or to export" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <ui:Button Content="Import into…" Icon="{ui:SymbolIcon ArrowImport24}" Click="OnImportClick" />
+                                <ui:Button Content="Export category…" Margin="8,0,0,0" Icon="{ui:SymbolIcon ArrowExport24}" Click="OnExportCategoryClick" />
+                                <Button Content="Export all…" Margin="8,0,0,0" Click="OnExportConfigurationClick" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ui:Card>
+                </StackPanel>
+            </TabItem>
+
+        </TabControl>
+    </Grid>
+</ui:FluentWindow>

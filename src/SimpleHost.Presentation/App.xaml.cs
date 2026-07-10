@@ -1,7 +1,5 @@
 using System.Windows;
-using SimpleHost.Application.Appearance;
 using SimpleHost.Application.Tray;
-using SimpleHost.Infrastructure.Appearance;
 using SimpleHost.Presentation.Composition;
 using SimpleHost.Presentation.DeepLinks;
 using SimpleHost.Presentation.ViewModels;
@@ -10,21 +8,19 @@ using SimpleHost.Presentation.ViewModels.DeepLinks;
 namespace SimpleHost.Presentation;
 
 /// <summary>
-/// The SimpleHost WPF application. It starts tray-first: rather than opening a window on launch, it
-/// installs a system tray icon that stays available for the whole time the process runs and gives
-/// access to the app's quick actions. The main window is only shown on demand from the tray, and
-/// closing it leaves the app running in the tray — the app quits only through the tray's Exit action
-/// (hence <c>ShutdownMode=OnExplicitShutdown</c>).
+/// The SimpleHost WPF application. It installs a system tray icon that stays available for the whole
+/// time the process runs, and opens the main window on launch. Closing the window leaves the app
+/// running in the tray (the window is hidden, not destroyed); the app quits only through the tray's
+/// Exit action (hence <c>ShutdownMode=OnExplicitShutdown</c>).
 ///
-/// On startup it also begins following the Windows light/dark theme: it reads the current system
-/// setting and applies the matching appearance, then switches the whole app whenever the user changes
-/// the system setting, so SimpleHost always looks at home next to the rest of Windows.
+/// Appearance is handled by WPF-UI: <see cref="Wpf.Ui.Appearance.ApplicationThemeManager"/> applies
+/// the current Windows light/dark theme at startup, and <see cref="Wpf.Ui.Appearance.SystemThemeWatcher"/>
+/// keeps the window in sync whenever the system theme changes, so SimpleHost always looks at home
+/// next to the rest of Windows 11.
 /// </summary>
 public partial class App : System.Windows.Application
 {
     private SimpleHostTrayIcon? _trayIcon;
-    private WindowsSystemThemeProvider? _themeProvider;
-    private SystemThemeWatcher? _themeWatcher;
     private CompositionRoot? _compositionRoot;
     private MainViewModel? _mainViewModel;
     private SingleInstanceDeepLinkService? _deepLinkService;
@@ -50,7 +46,8 @@ public partial class App : System.Windows.Application
 
         base.OnStartup(e);
 
-        StartFollowingSystemTheme();
+        // Match the current Windows light/dark theme before the first window is shown.
+        Wpf.Ui.Appearance.ApplicationThemeManager.ApplySystemTheme();
 
         // Resolve the hosts file from the command line (or environment), wire the whole object graph
         // behind it, and load it so the main window opens showing real data. Pointing the app at a
@@ -64,6 +61,10 @@ public partial class App : System.Windows.Application
         var trayController = new TrayMenuController(_mainViewModel, new TrayMenuFactory());
         _trayIcon = new SimpleHostTrayIcon(trayController, ShowMainWindow, Shutdown);
 
+        // Open the window on launch and let WPF-UI keep it following the system theme for its lifetime.
+        ShowMainWindow();
+        Wpf.Ui.Appearance.SystemThemeWatcher.Watch(MainWindow);
+
         // Route links forwarded by future second instances into the running app, and act on a link
         // this instance may itself have been launched with.
         _deepLinkService.StartListening(OnDeepLinkReceived);
@@ -76,8 +77,6 @@ public partial class App : System.Windows.Application
     protected override void OnExit(ExitEventArgs e)
     {
         _trayIcon?.Dispose();
-        _themeWatcher?.Dispose();
-        _themeProvider?.Dispose();
         _compositionRoot?.Dispose();
         _deepLinkService?.Dispose();
         base.OnExit(e);
@@ -95,21 +94,9 @@ public partial class App : System.Windows.Application
         });
     }
 
-    private void StartFollowingSystemTheme()
-    {
-        var applier = new ThemeApplier(this);
-
-        _themeProvider = new WindowsSystemThemeProvider();
-        _themeWatcher = new SystemThemeWatcher(_themeProvider);
-
-        // System theme notifications arrive on a background thread; apply on the UI thread.
-        _themeWatcher.ThemeChanged += theme => Dispatcher.Invoke(() => applier.Apply(theme));
-
-        applier.Apply(_themeWatcher.CurrentTheme);
-    }
-
     private void ShowMainWindow()
     {
+        // The window is hidden (not destroyed) when closed, so it is built once and re-shown.
         MainWindow ??= new MainWindow(_mainViewModel!);
         MainWindow.Show();
 

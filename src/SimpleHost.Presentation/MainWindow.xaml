@@ -5,4 +5,153 @@
         Height="600"
         Width="900"
         Background="{DynamicResource WindowBackgroundBrush}"
-        Foreground="{DynamicResource WindowForegroundBrush}" />
+        Foreground="{DynamicResource WindowForegroundBrush}">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+
+        <!-- One warning line inside a warnings panel. -->
+        <Style x:Key="WarningLineStyle" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,1,0,0" />
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+
+        <!-- Conflict and duplicate warnings, each shown only when there is something to warn about. -->
+        <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0">
+
+            <Border Visibility="{Binding HasHostnameConflicts, Converter={StaticResource BoolToVisibility}}"
+                    BorderBrush="#E5534B"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="10,8"
+                    Margin="0,0,0,8">
+                <StackPanel>
+                    <TextBlock Text="Hostname conflicts"
+                               FontWeight="SemiBold"
+                               Foreground="#E5534B" />
+                    <ItemsControl ItemsSource="{Binding HostnameConflictWarnings}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" Style="{StaticResource WarningLineStyle}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border Visibility="{Binding HasDuplicateEntries, Converter={StaticResource BoolToVisibility}}"
+                    BorderBrush="#D9822B"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="10,8"
+                    Margin="0,0,0,8">
+                <StackPanel>
+                    <TextBlock Text="Duplicate entries"
+                               FontWeight="SemiBold"
+                               Foreground="#D9822B" />
+                    <ItemsControl ItemsSource="{Binding DuplicateEntryWarnings}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" Style="{StaticResource WarningLineStyle}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+
+        <!-- The grouped host entries: the "No category" group first, then each category, in file order. -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="12">
+            <ItemsControl ItemsSource="{Binding VisibleGroups}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="0,0,0,16">
+
+                            <!-- Category header. -->
+                            <Border BorderBrush="{DynamicResource WindowForegroundBrush}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="0,0,0,4"
+                                    Margin="0,0,0,4"
+                                    Opacity="0.85">
+                                <TextBlock Text="{Binding DisplayName}"
+                                           FontSize="15"
+                                           FontWeight="Bold" />
+                            </Border>
+
+                            <!-- Entries in this category. -->
+                            <ItemsControl ItemsSource="{Binding Entries}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border x:Name="Row" Padding="2,3">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="150" />
+                                                    <ColumnDefinition Width="Auto" MinWidth="200" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- Active-versus-disabled status dot. -->
+                                                <Ellipse x:Name="StatusDot"
+                                                         Grid.Column="0"
+                                                         Width="9"
+                                                         Height="9"
+                                                         Margin="0,0,10,0"
+                                                         VerticalAlignment="Center" />
+
+                                                <TextBlock x:Name="Ip"
+                                                           Grid.Column="1"
+                                                           Text="{Binding IpAddress}"
+                                                           FontFamily="Consolas"
+                                                           VerticalAlignment="Center" />
+
+                                                <TextBlock x:Name="Host"
+                                                           Grid.Column="2"
+                                                           Text="{Binding Hostname}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,12,0" />
+
+                                                <TextBlock x:Name="Comment"
+                                                           Grid.Column="3"
+                                                           Text="{Binding Comment, StringFormat='# {0}'}"
+                                                           FontStyle="Italic"
+                                                           Opacity="0.7"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Border>
+
+                                        <DataTemplate.Triggers>
+                                            <!-- Active: green dot, full-strength row. -->
+                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                <Setter TargetName="StatusDot" Property="Fill" Value="#3FB950" />
+                                            </DataTrigger>
+                                            <!-- Disabled: grey dot, dimmed row, struck-through hostname. -->
+                                            <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                                <Setter TargetName="StatusDot" Property="Fill" Value="#6E7681" />
+                                                <Setter TargetName="Row" Property="Opacity" Value="0.5" />
+                                                <Setter TargetName="Host" Property="TextDecorations" Value="Strikethrough" />
+                                            </DataTrigger>
+                                            <!-- Hide the comment column when the entry has no comment. -->
+                                            <DataTrigger Binding="{Binding Comment}" Value="{x:Null}">
+                                                <Setter TargetName="Comment" Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+    </DockPanel>
+</Window>

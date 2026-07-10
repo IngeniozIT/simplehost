@@ -13,11 +13,12 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_a_pending_addition_through_the_repository()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), new RecordingDnsCacheFlusher());
         var changes = new PendingChangeSet();
         changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Work");
 
-        useCase.Execute(changes);
+        useCase.Execute(changes, flushDnsAfterSave: false);
 
         repository.Operations.ShouldHaveSingleItem()
             .ShouldBe("Add HostEntry { IpAddress = 10.0.0.1, Hostname = api.test, "
@@ -28,11 +29,12 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_a_pending_uncategorised_addition_with_no_category()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), new RecordingDnsCacheFlusher());
         var changes = new PendingChangeSet();
         changes.AddEntry(new HostEntry("127.0.0.1", "web.test"));
 
-        useCase.Execute(changes);
+        useCase.Execute(changes, flushDnsAfterSave: false);
 
         repository.Operations.ShouldHaveSingleItem()
             .ShouldBe("Add HostEntry { IpAddress = 127.0.0.1, Hostname = web.test, "
@@ -43,11 +45,12 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_a_pending_category_creation_through_the_repository()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), new RecordingDnsCacheFlusher());
         var changes = new PendingChangeSet();
         changes.CreateCategory("Work");
 
-        useCase.Execute(changes);
+        useCase.Execute(changes, flushDnsAfterSave: false);
 
         repository.Operations.ShouldHaveSingleItem().ShouldBe("CreateCategory Work");
     }
@@ -56,13 +59,14 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_a_pending_update_through_the_repository()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), new RecordingDnsCacheFlusher());
         var changes = new PendingChangeSet();
         changes.UpdateEntry(
             new HostEntry("127.0.0.1", "web.test"),
             new HostEntry("192.168.0.1", "web.test"));
 
-        useCase.Execute(changes);
+        useCase.Execute(changes, flushDnsAfterSave: false);
 
         repository.Operations.ShouldHaveSingleItem()
             .ShouldBe("Update HostEntry { IpAddress = 127.0.0.1, Hostname = web.test, "
@@ -74,11 +78,12 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_a_pending_deletion_through_the_repository()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), new RecordingDnsCacheFlusher());
         var changes = new PendingChangeSet();
         changes.DeleteEntry(new HostEntry("10.0.0.1", "api.test"));
 
-        useCase.Execute(changes);
+        useCase.Execute(changes, flushDnsAfterSave: false);
 
         repository.Operations.ShouldHaveSingleItem()
             .ShouldBe("Delete HostEntry { IpAddress = 10.0.0.1, Hostname = api.test, "
@@ -89,11 +94,12 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_a_pending_move_through_the_repository()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), new RecordingDnsCacheFlusher());
         var changes = new PendingChangeSet();
         changes.MoveEntry(new HostEntry("127.0.0.1", "web.test"), "Work");
 
-        useCase.Execute(changes);
+        useCase.Execute(changes, flushDnsAfterSave: false);
 
         repository.Operations.ShouldHaveSingleItem()
             .ShouldBe("Move HostEntry { IpAddress = 127.0.0.1, Hostname = web.test, "
@@ -104,11 +110,12 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_a_pending_reorder_through_the_repository()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), new RecordingDnsCacheFlusher());
         var changes = new PendingChangeSet();
         changes.ReorderEntry(new HostEntry("127.0.0.1", "web.test"), 2);
 
-        useCase.Execute(changes);
+        useCase.Execute(changes, flushDnsAfterSave: false);
 
         repository.Operations.ShouldHaveSingleItem()
             .ShouldBe("Reorder HostEntry { IpAddress = 127.0.0.1, Hostname = web.test, "
@@ -119,11 +126,12 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_a_pending_move_into_no_category()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), new RecordingDnsCacheFlusher());
         var changes = new PendingChangeSet();
         changes.MoveEntry(new HostEntry("127.0.0.1", "web.test"), null);
 
-        useCase.Execute(changes);
+        useCase.Execute(changes, flushDnsAfterSave: false);
 
         repository.Operations.ShouldHaveSingleItem()
             .ShouldBe("Move HostEntry { IpAddress = 127.0.0.1, Hostname = web.test, "
@@ -134,13 +142,14 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_every_accumulated_change_in_the_order_they_were_recorded()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), new RecordingDnsCacheFlusher());
         var changes = new PendingChangeSet();
         changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Work");
         changes.DeleteEntry(new HostEntry("127.0.0.1", "web.test"));
         changes.MoveEntry(new HostEntry("10.0.0.2", "db.test"), "Work");
 
-        useCase.Execute(changes);
+        useCase.Execute(changes, flushDnsAfterSave: false);
 
         repository.Operations.ShouldBe(new[]
         {
@@ -157,9 +166,10 @@ public class ApplyPendingChangesUseCaseTests
     public void Writes_nothing_when_no_changes_are_pending()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), new RecordingDnsCacheFlusher());
 
-        useCase.Execute(new PendingChangeSet());
+        useCase.Execute(new PendingChangeSet(), flushDnsAfterSave: false);
 
         repository.Operations.ShouldBeEmpty();
     }
@@ -168,11 +178,12 @@ public class ApplyPendingChangesUseCaseTests
     public void Clears_the_pending_changes_once_they_have_been_applied()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: true));
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), new RecordingDnsCacheFlusher());
         var changes = new PendingChangeSet();
         changes.AddEntry(new HostEntry("10.0.0.1", "api.test"));
 
-        useCase.Execute(changes);
+        useCase.Execute(changes, flushDnsAfterSave: false);
 
         changes.HasChanges.ShouldBeFalse();
         changes.Changes.ShouldBeEmpty();
@@ -182,11 +193,12 @@ public class ApplyPendingChangesUseCaseTests
     public void Refuses_to_write_pending_changes_when_the_process_is_not_elevated()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: false));
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: false), new RecordingDnsCacheFlusher());
         var changes = new PendingChangeSet();
         changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Work");
 
-        Should.Throw<ElevationRequiredException>(() => useCase.Execute(changes));
+        Should.Throw<ElevationRequiredException>(() => useCase.Execute(changes, flushDnsAfterSave: false));
 
         repository.Operations.ShouldBeEmpty();
     }
@@ -195,11 +207,12 @@ public class ApplyPendingChangesUseCaseTests
     public void Keeps_the_pending_changes_when_it_could_not_write_them_without_elevation()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: false));
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: false), new RecordingDnsCacheFlusher());
         var changes = new PendingChangeSet();
         changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Work");
 
-        Should.Throw<ElevationRequiredException>(() => useCase.Execute(changes));
+        Should.Throw<ElevationRequiredException>(() => useCase.Execute(changes, flushDnsAfterSave: false));
 
         changes.HasChanges.ShouldBeTrue();
         changes.Changes.ShouldHaveSingleItem();
@@ -209,11 +222,13 @@ public class ApplyPendingChangesUseCaseTests
     public void Explains_that_administrator_rights_are_required_when_it_refuses_to_write()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: false));
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: false), new RecordingDnsCacheFlusher());
         var changes = new PendingChangeSet();
         changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Work");
 
-        var exception = Should.Throw<ElevationRequiredException>(() => useCase.Execute(changes));
+        var exception = Should.Throw<ElevationRequiredException>(
+            () => useCase.Execute(changes, flushDnsAfterSave: false));
 
         exception.Message.ShouldBe("Administrator rights are required to save changes to the hosts file.");
     }
@@ -222,16 +237,112 @@ public class ApplyPendingChangesUseCaseTests
     public void Applies_an_empty_set_without_requiring_elevation()
     {
         var repository = new RecordingHostsFileRepository();
-        var useCase = new ApplyPendingChangesUseCase(repository, new FakeElevationService(isElevated: false));
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: false), new RecordingDnsCacheFlusher());
 
-        Should.NotThrow(() => useCase.Execute(new PendingChangeSet()));
+        Should.NotThrow(() => useCase.Execute(new PendingChangeSet(), flushDnsAfterSave: false));
 
         repository.Operations.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Flushes_the_dns_cache_after_a_successful_save_when_the_option_is_enabled()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var flusher = new RecordingDnsCacheFlusher();
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), flusher);
+        var changes = new PendingChangeSet();
+        changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Work");
+
+        useCase.Execute(changes, flushDnsAfterSave: true);
+
+        flusher.FlushCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public void Flushes_the_dns_cache_only_after_all_pending_changes_have_been_written()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var flusher = new RecordingDnsCacheFlusher(writesSoFar: () => repository.Operations.Count);
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), flusher);
+        var changes = new PendingChangeSet();
+        changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Work");
+        changes.DeleteEntry(new HostEntry("127.0.0.1", "web.test"));
+        changes.MoveEntry(new HostEntry("10.0.0.2", "db.test"), "Work");
+
+        useCase.Execute(changes, flushDnsAfterSave: true);
+
+        flusher.WritesWhenFlushed.ShouldBe(3);
+    }
+
+    [Fact]
+    public void Does_not_flush_the_dns_cache_when_the_option_is_disabled()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var flusher = new RecordingDnsCacheFlusher();
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), flusher);
+        var changes = new PendingChangeSet();
+        changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Work");
+
+        useCase.Execute(changes, flushDnsAfterSave: false);
+
+        repository.Operations.ShouldHaveSingleItem();
+        flusher.FlushCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public void Does_not_flush_the_dns_cache_when_there_were_no_changes_to_save()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var flusher = new RecordingDnsCacheFlusher();
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), flusher);
+
+        useCase.Execute(new PendingChangeSet(), flushDnsAfterSave: true);
+
+        flusher.FlushCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public void Does_not_flush_the_dns_cache_when_the_save_is_refused_for_lack_of_elevation()
+    {
+        var repository = new RecordingHostsFileRepository();
+        var flusher = new RecordingDnsCacheFlusher();
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: false), flusher);
+        var changes = new PendingChangeSet();
+        changes.AddEntry(new HostEntry("10.0.0.1", "api.test"), "Work");
+
+        Should.Throw<ElevationRequiredException>(() => useCase.Execute(changes, flushDnsAfterSave: true));
+
+        flusher.FlushCount.ShouldBe(0);
     }
 
     private sealed class FakeElevationService(bool isElevated) : IElevationService
     {
         public bool IsElevated { get; } = isElevated;
+    }
+
+    private sealed class RecordingDnsCacheFlusher(Func<int>? writesSoFar = null) : IDnsCacheFlusher
+    {
+        private readonly Func<int>? _writesSoFar = writesSoFar;
+
+        public int FlushCount { get; private set; }
+
+        public int WritesWhenFlushed { get; private set; } = -1;
+
+        public void Flush()
+        {
+            FlushCount++;
+
+            if (_writesSoFar is not null)
+            {
+                WritesWhenFlushed = _writesSoFar();
+            }
+        }
     }
 
     private sealed class RecordingHostsFileRepository : IHostsFileRepository

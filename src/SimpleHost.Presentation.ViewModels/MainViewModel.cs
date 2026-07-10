@@ -25,6 +25,7 @@ public sealed class MainViewModel : ViewModelBase
     private readonly PendingChangeSet _pendingChanges;
     private bool _hasHostnameConflicts;
     private bool _hasDuplicateEntries;
+    private HostEntryViewModel? _entryBeingEdited;
 
     public MainViewModel(
         ViewGroupedEntriesUseCase viewGroupedEntries,
@@ -46,6 +47,20 @@ public sealed class MainViewModel : ViewModelBase
     /// the view provides a prompt, since a delete removes a mapping the user may still rely on.
     /// </summary>
     public Func<HostEntryViewModel, bool>? DeleteConfirmation { get; set; }
+
+    /// <summary>
+    /// The draft of the entry being added, with live IP-address and hostname validation the view
+    /// binds to for inline feedback. <see cref="SaveNewEntry"/> stages it only while
+    /// <see cref="EntryFormViewModel.IsValid"/> holds.
+    /// </summary>
+    public EntryFormViewModel NewEntry { get; } = new();
+
+    /// <summary>
+    /// The draft of the entry being edited, populated by <see cref="BeginEditEntry"/> and validated
+    /// the same way as <see cref="NewEntry"/>. <see cref="SaveEditedEntry"/> stages it only while
+    /// <see cref="EntryFormViewModel.IsValid"/> holds.
+    /// </summary>
+    public EntryFormViewModel EditDraft { get; } = new();
 
     /// <summary>
     /// The entries grouped by category for display, in file order: the "No category" group first,
@@ -139,8 +154,7 @@ public sealed class MainViewModel : ViewModelBase
             _pendingChanges.UpdateEntry(target, replacement);
         }
 
-        var currentCategory = Groups.FirstOrDefault(group => group.Entries.Contains(entry))?.Name;
-        if (category != currentCategory)
+        if (category != CurrentCategoryOf(entry))
         {
             _pendingChanges.MoveEntry(replacement, category);
         }
@@ -161,6 +175,64 @@ public sealed class MainViewModel : ViewModelBase
 
         _pendingChanges.DeleteEntry(ToHostEntry(entry));
     }
+
+    /// <summary>
+    /// Stages the entry drafted in <see cref="NewEntry"/> as a pending addition, but only while the
+    /// draft is valid — an invalid IP address or hostname stages nothing. On success the draft is
+    /// cleared so the form is ready for the next entry. Nothing is written to the file until the
+    /// pending changes are applied.
+    /// </summary>
+    public void SaveNewEntry()
+    {
+        if (!NewEntry.IsValid)
+        {
+            return;
+        }
+
+        AddEntry(NewEntry.IpAddress, NewEntry.Hostname, NullIfBlank(NewEntry.Comment), NullIfBlank(NewEntry.Category));
+        NewEntry.Reset();
+    }
+
+    /// <summary>
+    /// Begins editing <paramref name="entry"/> by loading its IP address, hostname, comment and
+    /// current category into <see cref="EditDraft"/>, so the view can edit those fields with inline
+    /// validation and later save them through <see cref="SaveEditedEntry"/>.
+    /// </summary>
+    public void BeginEditEntry(HostEntryViewModel entry)
+    {
+        _entryBeingEdited = entry;
+        EditDraft.IpAddress = entry.IpAddress;
+        EditDraft.Hostname = entry.Hostname;
+        EditDraft.Comment = entry.Comment;
+        EditDraft.Category = CurrentCategoryOf(entry);
+    }
+
+    /// <summary>
+    /// Stages the edits drafted in <see cref="EditDraft"/> against the entry that
+    /// <see cref="BeginEditEntry"/> started editing, but only while the draft is valid and an edit is
+    /// in progress — an invalid IP address or hostname, or no active edit, stages nothing. Nothing is
+    /// written to the file until the pending changes are applied.
+    /// </summary>
+    public void SaveEditedEntry()
+    {
+        if (_entryBeingEdited is null || !EditDraft.IsValid)
+        {
+            return;
+        }
+
+        EditEntry(
+            _entryBeingEdited,
+            EditDraft.IpAddress,
+            EditDraft.Hostname,
+            NullIfBlank(EditDraft.Comment),
+            NullIfBlank(EditDraft.Category));
+    }
+
+    private string? CurrentCategoryOf(HostEntryViewModel entry)
+        => Groups.FirstOrDefault(group => group.Entries.Contains(entry))?.Name;
+
+    private static string? NullIfBlank(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value;
 
     private static HostEntry ToHostEntry(HostEntryViewModel entry)
         => new(entry.IpAddress, entry.Hostname, entry.Comment, entry.Status);

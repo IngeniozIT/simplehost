@@ -554,6 +554,177 @@ public class MainViewModelTests
         confirmed.ShouldBeSameAs(entry);
     }
 
+    [Fact]
+    public void SaveNewEntry_stages_the_drafted_entry_when_the_draft_is_valid()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+        viewModel.NewEntry.IpAddress = "127.0.0.1";
+        viewModel.NewEntry.Hostname = "api.test";
+        viewModel.NewEntry.Comment = "local api";
+        viewModel.NewEntry.Category = "Development";
+
+        viewModel.SaveNewEntry();
+
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<AddEntryChange>();
+        change.Entry.ShouldBe(new HostEntry("127.0.0.1", "api.test", "local api"));
+        change.Category.ShouldBe("Development");
+    }
+
+    [Fact]
+    public void SaveNewEntry_clears_the_draft_after_staging_it()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+        viewModel.NewEntry.IpAddress = "127.0.0.1";
+        viewModel.NewEntry.Hostname = "api.test";
+
+        viewModel.SaveNewEntry();
+
+        viewModel.NewEntry.IpAddress.ShouldBe(string.Empty);
+        viewModel.NewEntry.Hostname.ShouldBe(string.Empty);
+        viewModel.NewEntry.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void SaveNewEntry_treats_a_blank_comment_and_category_as_absent()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+        viewModel.NewEntry.IpAddress = "127.0.0.1";
+        viewModel.NewEntry.Hostname = "api.test";
+        viewModel.NewEntry.Comment = "   ";
+        viewModel.NewEntry.Category = "   ";
+
+        viewModel.SaveNewEntry();
+
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<AddEntryChange>();
+        change.Entry.Comment.ShouldBeNull();
+        change.Category.ShouldBeNull();
+    }
+
+    [Fact]
+    public void SaveNewEntry_stages_and_clears_nothing_when_the_draft_is_invalid()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+        viewModel.NewEntry.IpAddress = "not-an-ip";
+        viewModel.NewEntry.Hostname = "api.test";
+
+        viewModel.SaveNewEntry();
+
+        pendingChanges.HasChanges.ShouldBeFalse();
+        viewModel.NewEntry.IpAddress.ShouldBe("not-an-ip");
+    }
+
+    [Fact]
+    public void BeginEditEntry_loads_the_entry_and_its_current_category_into_the_edit_draft()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("127.0.0.1", "api.test", "old") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+
+        viewModel.BeginEditEntry(entry);
+
+        viewModel.EditDraft.IpAddress.ShouldBe("127.0.0.1");
+        viewModel.EditDraft.Hostname.ShouldBe("api.test");
+        viewModel.EditDraft.Comment.ShouldBe("old");
+        viewModel.EditDraft.Category.ShouldBe("Development");
+        viewModel.EditDraft.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void SaveEditedEntry_stages_the_edits_against_the_entry_being_edited()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("127.0.0.1", "api.test", "old") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        viewModel.BeginEditEntry(viewModel.Groups[0].Entries[0]);
+        viewModel.EditDraft.IpAddress = "127.0.0.2";
+        viewModel.EditDraft.Comment = "new";
+
+        viewModel.SaveEditedEntry();
+
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>();
+        change.Target.ShouldBe(new HostEntry("127.0.0.1", "api.test", "old"));
+        change.Replacement.ShouldBe(new HostEntry("127.0.0.2", "api.test", "new"));
+    }
+
+    [Fact]
+    public void SaveEditedEntry_treats_a_blank_comment_and_category_as_absent()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("127.0.0.1", "api.test", "old") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        viewModel.BeginEditEntry(viewModel.Groups[0].Entries[0]);
+        viewModel.EditDraft.Comment = "   ";
+        viewModel.EditDraft.Category = "   ";
+
+        viewModel.SaveEditedEntry();
+
+        // Comment cleared to null (an update) and category blanked to "No category" (a move out of
+        // Development), so both a replacement and a move are staged.
+        var update = pendingChanges.Changes[0].ShouldBeOfType<UpdateEntryChange>();
+        update.Replacement.Comment.ShouldBeNull();
+        var move = pendingChanges.Changes[1].ShouldBeOfType<MoveEntryChange>();
+        move.TargetCategory.ShouldBeNull();
+    }
+
+    [Fact]
+    public void SaveEditedEntry_stages_nothing_when_the_draft_is_invalid()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "api.test") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        viewModel.BeginEditEntry(viewModel.Groups[0].Entries[0]);
+        viewModel.EditDraft.Hostname = "bad_host";
+
+        viewModel.SaveEditedEntry();
+
+        pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void SaveEditedEntry_stages_nothing_when_no_edit_has_begun()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+        viewModel.EditDraft.IpAddress = "127.0.0.1";
+        viewModel.EditDraft.Hostname = "api.test";
+
+        viewModel.SaveEditedEntry();
+
+        pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
     private static MainViewModel BuildViewModel(
         FakeHostsFileRepository repository, PendingChangeSet? pendingChanges = null) =>
         new(

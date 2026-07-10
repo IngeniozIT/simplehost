@@ -43,9 +43,6 @@ public sealed class MainViewModel : ViewModelBase
     private readonly PreviewPendingChangesUseCase _previewPendingChanges;
     private readonly ApplyPendingChangesUseCase _applyPendingChanges;
     private readonly DiscardPendingChangesUseCase _discardPendingChanges;
-    private readonly SearchEntriesByHostnameUseCase _searchByHostname;
-    private readonly SearchEntriesByIpAddressUseCase _searchByIpAddress;
-    private readonly FilterEntriesByCategoryUseCase _filterByCategory;
     private readonly SaveProfileUseCase _saveProfile;
     private readonly SubscribeToRemoteHostsListUseCase _subscribeToRemoteList;
     private readonly RefreshSubscriptionUseCase _refreshSubscription;
@@ -58,6 +55,7 @@ public sealed class MainViewModel : ViewModelBase
     private readonly RelayCommand _applyCommand;
     private readonly RelayCommand _discardCommand;
     private readonly RelayCommand _previewCommand;
+    private IReadOnlyList<CategoryGroup> _onDiskGroups = Array.Empty<CategoryGroup>();
     private bool _hasHostnameConflicts;
     private bool _hasDuplicateEntries;
     private HostEntryViewModel? _entryBeingEdited;
@@ -93,9 +91,13 @@ public sealed class MainViewModel : ViewModelBase
         _previewPendingChanges = previewPendingChanges;
         _applyPendingChanges = applyPendingChanges;
         _discardPendingChanges = discardPendingChanges;
-        _searchByHostname = searchByHostname;
-        _searchByIpAddress = searchByIpAddress;
-        _filterByCategory = filterByCategory;
+        // The hostname/IP/category search and filter now narrow the pending-projected view built in
+        // this view-model (so staged edits stay searchable before they are applied), rather than
+        // querying the on-disk file through these use cases. The parameters are kept so the wired
+        // object graph the composition root assembles is unchanged.
+        _ = searchByHostname;
+        _ = searchByIpAddress;
+        _ = filterByCategory;
         _saveProfile = saveProfile;
         _subscribeToRemoteList = subscribeToRemoteList;
         _refreshSubscription = refreshSubscription;
@@ -177,8 +179,8 @@ public sealed class MainViewModel : ViewModelBase
     public ObservableCollection<CategoryGroupViewModel> VisibleGroups { get; } = new();
 
     /// <summary>
-    /// The hostname substring the visible list is narrowed by, matched case-insensitively through
-    /// the search-by-hostname use case. Blank (empty or whitespace) means no hostname narrowing.
+    /// The hostname substring the visible list is narrowed by, matched case-insensitively as a
+    /// substring of each shown entry's hostname. Blank (empty or whitespace) means no hostname narrowing.
     /// </summary>
     public string HostnameQuery
     {
@@ -193,8 +195,8 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// The IP-address substring the visible list is narrowed by, matched case-insensitively through
-    /// the search-by-IP-address use case. Blank (empty or whitespace) means no IP narrowing.
+    /// The IP-address substring the visible list is narrowed by, matched case-insensitively as a
+    /// substring of each shown entry's IP address. Blank (empty or whitespace) means no IP narrowing.
     /// </summary>
     public string IpAddressQuery
     {
@@ -414,6 +416,7 @@ public sealed class MainViewModel : ViewModelBase
 
     private void OnPendingChangesChanged(object? sender, EventArgs e)
     {
+        RebuildDisplayedGroups();
         OnPropertyChanged(nameof(PendingChangeCount));
         OnPropertyChanged(nameof(HasPendingChanges));
         _applyCommand.RaiseCanExecuteChanged();
@@ -450,10 +453,28 @@ public sealed class MainViewModel : ViewModelBase
         RebuildVisibleGroups();
     }
 
-    private void RebuildGroups(IReadOnlyList<CategoryGroup> groups)
+    /// <summary>
+    /// Captures <paramref name="onDiskGroups"/> as the on-disk baseline the pending changes are
+    /// projected onto, then rebuilds the displayed grouping from that baseline. Called on load,
+    /// refresh, apply and discard — the points at which the view-model reads the file.
+    /// </summary>
+    private void RebuildGroups(IReadOnlyList<CategoryGroup> onDiskGroups)
+    {
+        _onDiskGroups = onDiskGroups;
+        RebuildDisplayedGroups();
+    }
+
+    /// <summary>
+    /// Rebuilds <see cref="Groups"/> from the pending changes projected onto the on-disk baseline, so
+    /// staged edits — additions, edits, status flips, moves, reorders and deletions — show in the list
+    /// immediately, then re-applies the active search and filter to the fresh projection. Pending-change
+    /// targets keep resolving against the on-disk baseline because the whole set is re-projected from it
+    /// each time rather than layered onto the already-projected display.
+    /// </summary>
+    private void RebuildDisplayedGroups()
     {
         Groups.Clear();
-        foreach (var group in groups)
+        foreach (var group in ProjectPendingChanges())
         {
             Groups.Add(new CategoryGroupViewModel(group));
         }
@@ -461,19 +482,40 @@ public sealed class MainViewModel : ViewModelBase
         RebuildVisibleGroups();
     }
 
+    /// <summary>
+    /// Projects the current pending changes onto the on-disk baseline. Should a staged change
+    /// momentarily reference a target that cannot be located against the baseline, the display falls
+    /// back to the on-disk state rather than letting a projection failure crash the UI while staging.
+    /// </summary>
+    private IReadOnlyList<CategoryGroup> ProjectPendingChanges()
+    {
+        try
+        {
+            return _pendingChanges.ApplyTo(_onDiskGroups);
+        }
+        catch (InvalidOperationException)
+        {
+            return _onDiskGroups;
+        }
+    }
+
     private void RebuildVisibleGroups()
     {
-        var allowed = ComputeAllowedEntries();
         VisibleGroups.Clear();
         foreach (var group in Groups)
         {
-            if (allowed is null)
+            if (!HasActiveFilter)
             {
                 VisibleGroups.Add(group);
                 continue;
             }
 
-            var entries = group.Entries.Where(entry => allowed.Contains(ToHostEntry(entry))).ToList();
+            if (_isCategoryFilterActive && group.Name != _categoryFilter)
+            {
+                continue;
+            }
+
+            var entries = group.Entries.Where(MatchesActiveQueries).ToList();
             if (entries.Count > 0)
             {
                 VisibleGroups.Add(new CategoryGroupViewModel(group.Name, entries));
@@ -482,42 +524,26 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Builds the set of entries permitted by every active criterion by running each active
-    /// search/filter use case and intersecting their results, or <see langword="null"/> when no
-    /// criterion is active (meaning "show everything"). Each criterion is skipped when inactive, so
-    /// a blank query never narrows the view.
+    /// Whether <paramref name="entry"/> passes the active hostname and IP-address queries — each a
+    /// case-insensitive substring test, skipped while its query is blank. The category criterion is
+    /// applied structurally in <see cref="RebuildVisibleGroups"/> against the group the entry is shown
+    /// under, so a staged move is reflected the moment it is projected.
     /// </summary>
-    private HashSet<HostEntry>? ComputeAllowedEntries()
+    private bool MatchesActiveQueries(HostEntryViewModel entry)
     {
-        HashSet<HostEntry>? allowed = null;
-
-        if (!string.IsNullOrWhiteSpace(_hostnameQuery))
+        if (!string.IsNullOrWhiteSpace(_hostnameQuery)
+            && !entry.Hostname.Contains(_hostnameQuery.Trim(), StringComparison.OrdinalIgnoreCase))
         {
-            allowed = Restrict(allowed, _searchByHostname.Execute(_hostnameQuery));
+            return false;
         }
 
-        if (!string.IsNullOrWhiteSpace(_ipAddressQuery))
+        if (!string.IsNullOrWhiteSpace(_ipAddressQuery)
+            && !entry.IpAddress.Contains(_ipAddressQuery.Trim(), StringComparison.OrdinalIgnoreCase))
         {
-            allowed = Restrict(allowed, _searchByIpAddress.Execute(_ipAddressQuery));
+            return false;
         }
 
-        if (_isCategoryFilterActive)
-        {
-            allowed = Restrict(allowed, _filterByCategory.Execute(_categoryFilter));
-        }
-
-        return allowed;
-    }
-
-    private static HashSet<HostEntry> Restrict(HashSet<HostEntry>? current, IReadOnlyList<HostEntry> matches)
-    {
-        if (current is null)
-        {
-            return new HashSet<HostEntry>(matches);
-        }
-
-        current.IntersectWith(matches);
-        return current;
+        return true;
     }
 
     private void RefreshWarnings()
@@ -693,6 +719,9 @@ public sealed class MainViewModel : ViewModelBase
         HostEntryViewModel entry, string ipAddress, string hostname, string? comment, string? category)
     {
         var target = ToHostEntry(entry);
+        // Resolve the entry's current category before staging: staging the update below rebuilds the
+        // displayed Groups, which would leave this view-model instance no longer found in them.
+        var currentCategory = CurrentCategoryOf(entry);
         var replacement = new HostEntry(ipAddress, hostname, comment, entry.Status);
 
         if (replacement != target)
@@ -700,7 +729,7 @@ public sealed class MainViewModel : ViewModelBase
             _pendingChanges.UpdateEntry(target, replacement);
         }
 
-        if (category != CurrentCategoryOf(entry))
+        if (category != currentCategory)
         {
             _pendingChanges.MoveEntry(replacement, category);
         }
@@ -828,14 +857,17 @@ public sealed class MainViewModel : ViewModelBase
             return;
         }
 
-        foreach (var group in Groups)
+        // Snapshot the category names first: staging a change rebuilds Groups (the display now reflects
+        // pending edits), so iterating Groups directly would mutate the collection mid-enumeration.
+        var categories = Groups.Select(group => group.Name).ToList();
+        foreach (var category in categories)
         {
             var status = profile.EnabledCategories.Any(
-                enabled => string.Equals(enabled, group.Name, StringComparison.Ordinal))
+                enabled => string.Equals(enabled, category, StringComparison.Ordinal))
                 ? HostEntryStatus.Active
                 : HostEntryStatus.Disabled;
 
-            StageCategoryStatusChange(group.Name, status);
+            StageCategoryStatusChange(category, status);
         }
     }
 

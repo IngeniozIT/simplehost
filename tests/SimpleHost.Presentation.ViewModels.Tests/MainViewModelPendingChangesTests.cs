@@ -285,8 +285,11 @@ public class MainViewModelPendingChangesTests
         elevationRequested.ShouldBeTrue();
         repository.Operations.ShouldBeEmpty();
         viewModel.PendingChangeCount.ShouldBe(1);
+        // The refused apply leaves the pending projection intact: the staged addition is still shown
+        // alongside the on-disk entry, not reverted to the on-disk state.
         viewModel.Groups.ShouldHaveSingleItem()
-            .Entries.ShouldHaveSingleItem().Hostname.ShouldBe("localhost");
+            .Entries.Select(entry => entry.Hostname)
+            .ShouldBe(new[] { "localhost", "added.test" });
         // The refused apply must not fall through to the refresh/clear that a successful apply does:
         // the pending preview is left intact for the retry.
         viewModel.PreviewDiff.ShouldBeSameAs(previewBeforeApply);
@@ -360,6 +363,190 @@ public class MainViewModelPendingChangesTests
         viewModel.DiscardPendingChanges();
 
         viewModel.PreviewDiff.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Staging_an_addition_shows_it_in_the_grouped_view_immediately()
+    {
+        var repository = new RecordingHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+
+        viewModel.AddEntry("10.0.0.9", "added.test");
+
+        viewModel.Groups.ShouldHaveSingleItem()
+            .Entries.Select(entry => entry.Hostname)
+            .ShouldBe(new[] { "localhost", "added.test" });
+        viewModel.VisibleGroups.ShouldHaveSingleItem()
+            .Entries.Select(entry => entry.Hostname)
+            .ShouldBe(new[] { "localhost", "added.test" });
+    }
+
+    [Fact]
+    public void Staging_a_status_flip_shows_the_entry_disabled_in_the_view_immediately()
+    {
+        var repository = new RecordingHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "web.test") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+
+        viewModel.DisableEntry(viewModel.Groups[0].Entries[0]);
+
+        var entry = viewModel.Groups[0].Entries.ShouldHaveSingleItem();
+        entry.Hostname.ShouldBe("web.test");
+        entry.Status.ShouldBe(HostEntryStatus.Disabled);
+    }
+
+    [Fact]
+    public void Staging_an_edit_shows_the_updated_entry_in_the_view_immediately()
+    {
+        var repository = new RecordingHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Work", new[] { new HostEntry("127.0.0.1", "api.test", "old") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+
+        viewModel.EditEntry(viewModel.Groups[0].Entries[0], "127.0.0.2", "api.test", "new", "Work");
+
+        var entry = viewModel.Groups[0].Entries.ShouldHaveSingleItem();
+        entry.IpAddress.ShouldBe("127.0.0.2");
+        entry.Comment.ShouldBe("new");
+    }
+
+    [Fact]
+    public void Staging_a_move_shows_the_entry_under_its_new_category_immediately()
+    {
+        var repository = new RecordingHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }),
+                new CategoryGroup("Work", Array.Empty<HostEntry>()),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+
+        viewModel.MoveEntry(viewModel.Groups[0].Entries[0], "Work");
+
+        viewModel.Groups.Single(group => group.Name == "Work")
+            .Entries.Select(entry => entry.Hostname)
+            .ShouldBe(new[] { "localhost" });
+        viewModel.Groups.Single(group => group.IsUncategorized).Entries.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Staging_a_deletion_removes_the_entry_from_the_view_immediately()
+    {
+        var repository = new RecordingHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[]
+                {
+                    new HostEntry("127.0.0.1", "localhost"),
+                    new HostEntry("10.0.0.1", "api.test"),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+        viewModel.DeleteConfirmation = _ => true;
+
+        viewModel.DeleteEntry(viewModel.Groups[0].Entries[0]);
+
+        viewModel.Groups.ShouldHaveSingleItem()
+            .Entries.Select(entry => entry.Hostname)
+            .ShouldBe(new[] { "api.test" });
+    }
+
+    [Fact]
+    public void Successive_stagings_project_from_the_on_disk_baseline_without_double_applying()
+    {
+        var repository = new RecordingHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+
+        viewModel.AddEntry("10.0.0.1", "a.test");
+        viewModel.AddEntry("10.0.0.2", "b.test");
+
+        viewModel.Groups.ShouldHaveSingleItem()
+            .Entries.Select(entry => entry.Hostname)
+            .ShouldBe(new[] { "localhost", "a.test", "b.test" });
+    }
+
+    [Fact]
+    public void A_status_flip_stays_visible_under_an_active_hostname_filter()
+    {
+        var repository = new RecordingHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "web.test") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+        viewModel.HostnameQuery = "web";
+
+        viewModel.DisableEntry(viewModel.Groups[0].Entries[0]);
+
+        var visible = viewModel.VisibleGroups.ShouldHaveSingleItem().Entries.ShouldHaveSingleItem();
+        visible.Hostname.ShouldBe("web.test");
+        visible.Status.ShouldBe(HostEntryStatus.Disabled);
+    }
+
+    [Fact]
+    public void A_staged_addition_matching_the_active_query_appears_in_the_visible_groups()
+    {
+        var repository = new RecordingHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "web.test") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+        viewModel.HostnameQuery = "api";
+        viewModel.VisibleGroups.ShouldBeEmpty();
+
+        viewModel.AddEntry("10.0.0.1", "api.test");
+
+        viewModel.VisibleGroups.ShouldHaveSingleItem()
+            .Entries.ShouldHaveSingleItem().Hostname.ShouldBe("api.test");
+    }
+
+    [Fact]
+    public void Staging_before_the_file_is_loaded_does_not_crash_and_leaves_the_view_at_the_baseline()
+    {
+        var viewModel = BuildViewModel(new RecordingHostsFileRepository());
+
+        Should.NotThrow(() => viewModel.AddEntry("127.0.0.1", "a.test"));
+
+        viewModel.PendingChangeCount.ShouldBe(1);
+        viewModel.Groups.ShouldBeEmpty();
     }
 
     private static MainViewModel BuildViewModel(

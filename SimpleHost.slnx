@@ -3,10 +3,12 @@
     <Project Path="src/SimpleHost.Application/SimpleHost.Application.csproj" />
     <Project Path="src/SimpleHost.Domain/SimpleHost.Domain.csproj" />
     <Project Path="src/SimpleHost.Infrastructure/SimpleHost.Infrastructure.csproj" />
+    <Project Path="src/SimpleHost.Presentation.ViewModels/SimpleHost.Presentation.ViewModels.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SimpleHost.Application.Tests/SimpleHost.Application.Tests.csproj" />
     <Project Path="tests/SimpleHost.Domain.Tests/SimpleHost.Domain.Tests.csproj" />
     <Project Path="tests/SimpleHost.Infrastructure.Tests/SimpleHost.Infrastructure.Tests.csproj" />
+    <Project Path="tests/SimpleHost.Presentation.ViewModels.Tests/SimpleHost.Presentation.ViewModels.Tests.csproj" />
   </Folder>
 </Solution>

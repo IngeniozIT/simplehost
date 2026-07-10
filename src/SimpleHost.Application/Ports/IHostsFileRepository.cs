@@ -35,6 +35,22 @@ public interface IHostsFileRepository
     void UpdateEntry(HostEntry target, HostEntry replacement);
 
     /// <summary>
+    /// Moves the first entry that matches <paramref name="entry"/> under the
+    /// <c># [SimpleHost:Category] &lt;Name&gt;</c> marker block named by
+    /// <paramref name="targetCategory"/> — appended as the last entry of that block — or, when
+    /// <paramref name="targetCategory"/> is <c>null</c>, into the "No category" region (before the
+    /// first marker). The entry's line is relocated with its content preserved (IP, hostname,
+    /// inline comment, and active/disabled status), so its category membership changes while the
+    /// entry itself is unchanged.
+    /// </summary>
+    /// <param name="entry">The existing entry to move, as previously read from the file.</param>
+    /// <param name="targetCategory">
+    /// The name of an existing category to move the entry under, or <c>null</c> to move it into
+    /// "No category".
+    /// </param>
+    void MoveEntryToCategory(HostEntry entry, string? targetCategory);
+
+    /// <summary>
     /// Returns every active (uncommented) entry currently in the <c>hosts</c> file,
     /// in the order they appear.
     /// </summary>

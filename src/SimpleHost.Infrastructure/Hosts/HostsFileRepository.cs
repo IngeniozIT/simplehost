@@ -32,6 +32,18 @@ public sealed class HostsFileRepository(
         File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
     }
 
+    public void MoveEntryToCategory(HostEntry entry, string? targetCategory)
+    {
+        var lines = ReadContentLines(File.ReadAllText(filePath));
+
+        var index = FindEntryIndex(lines, entry);
+        var line = lines[index];
+        lines.RemoveAt(index);
+        lines.Insert(FindInsertionIndex(lines, targetCategory), line);
+
+        File.WriteAllText(filePath, string.Concat(lines.Select(l => $"{l}\n")));
+    }
+
     /// <summary>
     /// Returns the index of the first line that parses back to <paramref name="target"/> — matched
     /// by its parsed content rather than by raw text, so incidental whitespace differences do not

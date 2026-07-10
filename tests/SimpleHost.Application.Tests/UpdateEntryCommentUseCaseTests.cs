@@ -92,6 +92,9 @@ public class UpdateEntryCommentUseCaseTests
         public void AddEntry(HostEntry entry, string? category = null)
             => throw new NotSupportedException();
 
+        public void MoveEntryToCategory(HostEntry entry, string? targetCategory)
+            => throw new NotSupportedException();
+
         public IReadOnlyList<HostEntry> GetActiveEntries() => throw new NotSupportedException();
 
         public IReadOnlyList<HostEntry> GetEntries() => throw new NotSupportedException();

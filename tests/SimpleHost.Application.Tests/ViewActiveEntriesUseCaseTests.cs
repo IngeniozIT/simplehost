@@ -45,6 +45,9 @@ public class ViewActiveEntriesUseCaseTests
 
     private sealed class FakeHostsFileRepository(params HostEntry[] entries) : IHostsFileRepository
     {
+        public void MoveEntryToCategory(HostEntry entry, string? targetCategory)
+            => throw new NotSupportedException();
+
         public void AddEntry(HostEntry entry, string? category = null)
             => throw new NotSupportedException();
 

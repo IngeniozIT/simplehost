@@ -64,6 +64,9 @@ public class UpdateEntryHostnameUseCaseTests
             Replacement = replacement;
         }
 
+        public void MoveEntryToCategory(HostEntry entry, string? targetCategory)
+            => throw new NotSupportedException();
+
         public void AddEntry(HostEntry entry, string? category = null)
             => throw new NotSupportedException();
 

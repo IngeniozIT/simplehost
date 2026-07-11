@@ -38,6 +38,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     // and tears down the very row (and text box) being committed, which fires LostKeyboardFocus again.
     private bool _suppressInlineCommit;
 
+    // Same re-entrancy guard for the inline "add entry" draft row: committing it stages an add, which
+    // rebuilds the list and disposes the draft row, firing its LostKeyboardFocus again mid-commit.
+    private bool _suppressAddCommit;
+
     // Live state for the in-flight drag: the floating ghost, its layer, the dimmed source row, where
     // inside that row the user grabbed, and the row currently showing an opened insertion gap.
     private DragAdorner? _dragAdorner;
@@ -124,16 +128,86 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     // --- Adding, editing and deleting a single entry -----------------------------------------
 
-    private void OnAddEntryClick(object sender, RoutedEventArgs e)
+    private void OnAddEntryInlineClick(object sender, RoutedEventArgs e)
     {
-        // Adding reuses the same modal form as editing, bound to the view-model's new-entry draft.
-        // Reset it so the form opens empty, and stage the entry only when the user confirms a valid one.
-        _viewModel.NewEntry.Reset();
-
-        var dialog = new EntryEditWindow(_viewModel.NewEntry) { Owner = this, Title = "Add entry" };
-        if (dialog.ShowDialog() == true)
+        // The plus button in a category header opens an inline, editable draft row at the bottom of
+        // that category. The draft is bound to the view-model's new-entry draft; the user types the
+        // fields directly into the row and commits them there (see the OnAddRow* handlers), so no
+        // separate window is opened.
+        if (GroupOf(sender) is { } group)
         {
-            _viewModel.SaveNewEntry();
+            _viewModel.BeginAddEntry(group.Name);
+        }
+    }
+
+    // --- Inline "add entry" draft row: type the fields directly and commit in place --------------
+
+    private void OnAddRowKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        // Enter commits the drafted entry; Escape abandons it. Both consume the key so it does not also
+        // ring the default-button bell or bubble up as list navigation.
+        if (e.Key == System.Windows.Input.Key.Enter)
+        {
+            e.Handled = true;
+            CommitAddRow();
+        }
+        else if (e.Key == System.Windows.Input.Key.Escape)
+        {
+            e.Handled = true;
+            _viewModel.CancelAddEntry();
+        }
+    }
+
+    private void OnAddRowLostFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+    {
+        // Leaving the whole draft row (a click or Tab out of it) commits it, exactly like pressing
+        // Enter. Focus moving between the row's own fields and buttons is not a leave, so ignore it —
+        // otherwise tabbing from the IP field to the hostname field would commit prematurely.
+        if (sender is System.Windows.Controls.Border row
+            && e.NewFocus is DependencyObject focus
+            && IsWithin(focus, row))
+        {
+            return;
+        }
+
+        CommitAddRow();
+    }
+
+    private void OnAddRowConfirmClick(object sender, RoutedEventArgs e) => CommitAddRow();
+
+    private void OnAddRowCancelClick(object sender, RoutedEventArgs e) => _viewModel.CancelAddEntry();
+
+    private void OnAddRowVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        // When the draft row appears, put the caret in the IP field so the user can type immediately.
+        // Defer to Input priority so the row is laid out (and focusable) before we focus it.
+        if (e.NewValue is true && sender is System.Windows.Controls.Border row)
+        {
+            row.Dispatcher.BeginInvoke(
+                new Action(() => FindDescendant<Wpf.Ui.Controls.TextBox>(row)?.Focus()),
+                System.Windows.Threading.DispatcherPriority.Input);
+        }
+    }
+
+    private void CommitAddRow()
+    {
+        // Staging the add rebuilds the list and disposes this draft row synchronously — which re-enters
+        // here through the row's own LostKeyboardFocus — so hold the guard across the commit. An empty
+        // draft is discarded and a valid one staged; an invalid, partially-typed draft is left open so
+        // the user can fix it (CommitNewEntry returns false and changes nothing).
+        if (_suppressAddCommit)
+        {
+            return;
+        }
+
+        _suppressAddCommit = true;
+        try
+        {
+            _viewModel.CommitNewEntry();
+        }
+        finally
+        {
+            _suppressAddCommit = false;
         }
     }
 
@@ -825,6 +899,39 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             if (current is T match)
             {
                 return match;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsWithin(DependencyObject? node, DependencyObject ancestor)
+    {
+        for (var current = node; current is not null; current = ParentOf(current))
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        var count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (var index = 0; index < count; index++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, index);
+            if (child is T match)
+            {
+                return match;
+            }
+
+            if (FindDescendant<T>(child) is { } nested)
+            {
+                return nested;
             }
         }
 

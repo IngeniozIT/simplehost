@@ -789,6 +789,159 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public void BeginAddEntry_opens_an_empty_draft_targeting_the_given_category()
+    {
+        var viewModel = BuildViewModel(new FakeHostsFileRepository());
+
+        viewModel.BeginAddEntry("Development");
+
+        viewModel.IsAddingEntry.ShouldBeTrue();
+        viewModel.AddingEntryCategory.ShouldBe("Development");
+        viewModel.NewEntry.IpAddress.ShouldBe(string.Empty);
+        viewModel.NewEntry.Hostname.ShouldBe(string.Empty);
+        viewModel.NewEntry.Category.ShouldBe("Development");
+    }
+
+    [Fact]
+    public void BeginAddEntry_can_target_the_no_category_group()
+    {
+        var viewModel = BuildViewModel(new FakeHostsFileRepository());
+
+        viewModel.BeginAddEntry(null);
+
+        viewModel.IsAddingEntry.ShouldBeTrue();
+        viewModel.AddingEntryCategory.ShouldBeNull();
+    }
+
+    [Fact]
+    public void BeginAddEntry_announces_that_a_draft_is_being_added()
+    {
+        var viewModel = BuildViewModel(new FakeHostsFileRepository());
+        var announced = new List<string?>();
+        viewModel.PropertyChanged += (_, e) => announced.Add(e.PropertyName);
+
+        viewModel.BeginAddEntry("Work");
+
+        announced.ShouldContain(nameof(MainViewModel.IsAddingEntry));
+        announced.ShouldContain(nameof(MainViewModel.AddingEntryCategory));
+    }
+
+    [Fact]
+    public void CommitNewEntry_stages_a_valid_draft_as_a_pending_add_into_its_category()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+        viewModel.BeginAddEntry("Development");
+        viewModel.NewEntry.IpAddress = "127.0.0.1";
+        viewModel.NewEntry.Hostname = "api.test";
+        viewModel.NewEntry.Comment = "local api";
+
+        var committed = viewModel.CommitNewEntry();
+
+        committed.ShouldBeTrue();
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<AddEntryChange>();
+        change.Entry.ShouldBe(new HostEntry("127.0.0.1", "api.test", "local api"));
+        change.Category.ShouldBe("Development");
+        viewModel.IsAddingEntry.ShouldBeFalse();
+        viewModel.AddingEntryCategory.ShouldBeNull();
+    }
+
+    [Fact]
+    public void CommitNewEntry_stages_a_no_category_draft_without_a_category()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+        viewModel.BeginAddEntry(null);
+        viewModel.NewEntry.IpAddress = "127.0.0.1";
+        viewModel.NewEntry.Hostname = "localhost";
+
+        viewModel.CommitNewEntry();
+
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<AddEntryChange>();
+        change.Category.ShouldBeNull();
+    }
+
+    [Fact]
+    public void CommitNewEntry_shows_the_added_entry_in_its_category_immediately()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Work", Array.Empty<HostEntry>()),
+            },
+        };
+        var viewModel = BuildViewModel(repository);
+        viewModel.Load();
+        viewModel.BeginAddEntry("Work");
+        viewModel.NewEntry.IpAddress = "10.0.0.1";
+        viewModel.NewEntry.Hostname = "api.test";
+
+        viewModel.CommitNewEntry();
+
+        viewModel.Groups.Single(group => group.Name == "Work")
+            .Entries.ShouldHaveSingleItem().Hostname.ShouldBe("api.test");
+    }
+
+    [Fact]
+    public void CommitNewEntry_discards_an_empty_draft_without_staging_anything()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+        viewModel.BeginAddEntry("Work");
+
+        var committed = viewModel.CommitNewEntry();
+
+        committed.ShouldBeTrue();
+        pendingChanges.HasChanges.ShouldBeFalse();
+        viewModel.IsAddingEntry.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void CommitNewEntry_keeps_an_invalid_non_empty_draft_open_and_stages_nothing()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+        viewModel.BeginAddEntry("Work");
+        viewModel.NewEntry.IpAddress = "not-an-ip";
+        viewModel.NewEntry.Hostname = "api.test";
+
+        var committed = viewModel.CommitNewEntry();
+
+        committed.ShouldBeFalse();
+        pendingChanges.HasChanges.ShouldBeFalse();
+        viewModel.IsAddingEntry.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CommitNewEntry_does_nothing_when_no_draft_is_open()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+
+        var committed = viewModel.CommitNewEntry();
+
+        committed.ShouldBeFalse();
+        pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void CancelAddEntry_closes_the_draft_without_staging_anything()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(new FakeHostsFileRepository(), pendingChanges);
+        viewModel.BeginAddEntry("Work");
+        viewModel.NewEntry.IpAddress = "10.0.0.1";
+        viewModel.NewEntry.Hostname = "api.test";
+
+        viewModel.CancelAddEntry();
+
+        viewModel.IsAddingEntry.ShouldBeFalse();
+        viewModel.AddingEntryCategory.ShouldBeNull();
+        pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
     public void BeginEditEntry_loads_the_entry_and_its_current_category_into_the_edit_draft()
     {
         var repository = new FakeHostsFileRepository

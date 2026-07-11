@@ -15,6 +15,7 @@
     <ui:FluentWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <local:CountToVisibilityConverter x:Key="CountToVisibility" />
+        <local:AddEntryRowVisibilityConverter x:Key="AddEntryRowVisibility" />
 
         <!-- An entry field the user edits in place: it reads as plain text until hovered or focused,
              when a subtle Fluent border (and, while editing, a fill) reveals it is editable. -->
@@ -61,13 +62,10 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <!-- Command bar: search + filter + add. -->
+                    <!-- Command bar: search + filter. Adding an entry is inline — the plus button in
+                         each category header opens an editable draft row in that category. -->
                     <Grid Grid.Row="0" Margin="0,0,0,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <StackPanel Orientation="Horizontal">
                             <ui:TextBox x:Name="SearchBox"
                                         Width="398"
                                         Icon="{ui:SymbolIcon Search24}"
@@ -85,11 +83,6 @@
                                     ToolTip="Clear the search and category filter"
                                     Click="OnClearFiltersClick" />
                         </StackPanel>
-                        <ui:Button Grid.Column="1"
-                                   Appearance="Primary"
-                                   Icon="{ui:SymbolIcon Add24}"
-                                   Content="Add entry"
-                                   Click="OnAddEntryClick" />
                     </Grid>
 
                     <!-- Conflict and duplicate warnings, each shown only when relevant. -->
@@ -200,6 +193,14 @@
                                                                    FontSize="11"
                                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                     </Border>
+                                                    <!-- Adds an editable, empty entry row at the bottom of this category. -->
+                                                    <ui:Button Margin="6,0,0,0"
+                                                               Padding="6,2"
+                                                               VerticalAlignment="Center"
+                                                               Appearance="Subtle"
+                                                               Icon="{ui:SymbolIcon Add24}"
+                                                               ToolTip="Add an entry to this category"
+                                                               Click="OnAddEntryInlineClick" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                                                     <Button Content="Enable all" Click="OnEnableCategoryClick" />
@@ -332,6 +333,66 @@
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
+
+                                        <!-- Inline "new entry" draft row: shown at the bottom of this category only while the
+                                             user is adding an entry to it (the plus button in this header opened it). The user
+                                             types the IP address, hostname and optional description directly and commits with
+                                             Enter, the check button, or by clicking away; Escape (or the cross) cancels. It
+                                             stages through the same validated MainViewModel.NewEntry / SaveNewEntry path, so an
+                                             empty row stages nothing and a valid one appears as a pending add. -->
+                                        <Border x:Name="AddRow"
+                                                Padding="6,4"
+                                                Margin="0,1"
+                                                CornerRadius="6"
+                                                Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                                KeyDown="OnAddRowKeyDown"
+                                                LostKeyboardFocus="OnAddRowLostFocus"
+                                                IsVisibleChanged="OnAddRowVisibleChanged">
+                                            <Border.Visibility>
+                                                <MultiBinding Converter="{StaticResource AddEntryRowVisibility}">
+                                                    <Binding Path="DataContext.IsAddingEntry"
+                                                             RelativeSource="{RelativeSource AncestorType={x:Type ui:FluentWindow}}" />
+                                                    <Binding Path="DataContext.AddingEntryCategory"
+                                                             RelativeSource="{RelativeSource AncestorType={x:Type ui:FluentWindow}}" />
+                                                    <Binding Path="Name" />
+                                                </MultiBinding>
+                                            </Border.Visibility>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="150" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <ui:TextBox x:Name="AddIpBox"
+                                                            Grid.Column="0"
+                                                            FontFamily="Consolas"
+                                                            VerticalAlignment="Center"
+                                                            PlaceholderText="IP address"
+                                                            Text="{Binding DataContext.NewEntry.IpAddress, RelativeSource={RelativeSource AncestorType={x:Type ui:FluentWindow}}, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,8,0">
+                                                    <ui:TextBox PlaceholderText="Hostname"
+                                                                Text="{Binding DataContext.NewEntry.Hostname, RelativeSource={RelativeSource AncestorType={x:Type ui:FluentWindow}}, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <ui:TextBox Margin="0,4,0,0"
+                                                                FontSize="12"
+                                                                PlaceholderText="Description (optional)"
+                                                                Text="{Binding DataContext.NewEntry.Comment, RelativeSource={RelativeSource AncestorType={x:Type ui:FluentWindow}}, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <ui:Button Appearance="Primary"
+                                                               Icon="{ui:SymbolIcon Checkmark24}"
+                                                               ToolTip="Add this entry"
+                                                               Click="OnAddRowConfirmClick" />
+                                                    <ui:Button Margin="6,0,0,0"
+                                                               Appearance="Subtle"
+                                                               Icon="{ui:SymbolIcon Dismiss24}"
+                                                               ToolTip="Cancel"
+                                                               Click="OnAddRowCancelClick" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
 
                                     </StackPanel>
 

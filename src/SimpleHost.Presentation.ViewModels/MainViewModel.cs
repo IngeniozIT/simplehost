@@ -64,6 +64,8 @@ public sealed class MainViewModel : ViewModelBase
     private string? _categoryFilter;
     private bool _isCategoryFilterActive;
     private bool _flushDnsAfterSaving;
+    private bool _isAddingEntry;
+    private string? _addingEntryCategory;
 
     public MainViewModel(
         ViewGroupedEntriesUseCase viewGroupedEntries,
@@ -159,6 +161,31 @@ public sealed class MainViewModel : ViewModelBase
     /// <see cref="EntryFormViewModel.IsValid"/> holds.
     /// </summary>
     public EntryFormViewModel EditDraft { get; } = new();
+
+    /// <summary>
+    /// Whether the user is currently adding an entry inline — a draft "new entry" row is open in one
+    /// category, waiting to be filled in and committed. <see cref="BeginAddEntry"/> opens it;
+    /// <see cref="CommitNewEntry"/> and <see cref="CancelAddEntry"/> close it. While it holds, the
+    /// view shows the editable, empty draft row (bound to <see cref="NewEntry"/>) at the bottom of the
+    /// <see cref="AddingEntryCategory"/> category.
+    /// </summary>
+    public bool IsAddingEntry
+    {
+        get => _isAddingEntry;
+        private set => SetProperty(ref _isAddingEntry, value);
+    }
+
+    /// <summary>
+    /// The category the inline "new entry" draft is being added to while <see cref="IsAddingEntry"/>
+    /// holds: a category name, or <c>null</c> for the "No category" group. Being <c>null</c> here does
+    /// not mean no draft is open — <see cref="IsAddingEntry"/> tells the two apart, so the view can
+    /// show the draft under the "No category" group.
+    /// </summary>
+    public string? AddingEntryCategory
+    {
+        get => _addingEntryCategory;
+        private set => SetProperty(ref _addingEntryCategory, value);
+    }
 
     /// <summary>
     /// The entries grouped by category for display, in file order: the "No category" group first,
@@ -779,6 +806,70 @@ public sealed class MainViewModel : ViewModelBase
         AddEntry(NewEntry.IpAddress, NewEntry.Hostname, NullIfBlank(NewEntry.Comment), NullIfBlank(NewEntry.Category));
         NewEntry.Reset();
     }
+
+    /// <summary>
+    /// Opens an inline "new entry" draft targeted at <paramref name="category"/> (a category name, or
+    /// <c>null</c> for the "No category" group): resets <see cref="NewEntry"/> to an empty draft bound
+    /// to that category, so the view can show an editable, empty row at the bottom of it. Only one
+    /// draft is open at a time; opening a new one replaces any draft already open, discarding whatever
+    /// was typed. Nothing is staged until the draft is committed.
+    /// </summary>
+    public void BeginAddEntry(string? category)
+    {
+        NewEntry.Reset();
+        NewEntry.Category = category;
+        AddingEntryCategory = category;
+        IsAddingEntry = true;
+    }
+
+    /// <summary>
+    /// Commits the open inline "new entry" draft. An empty draft (blank IP address, hostname and
+    /// description) — a row opened but never filled in — is discarded, staging nothing, and the draft
+    /// closes; this returns <c>true</c>. A draft whose IP address or hostname is ill-formed stages
+    /// nothing and is left open so the user can correct it; this returns <c>false</c>. A valid draft
+    /// is staged as a pending add into its target category through the same <see cref="SaveNewEntry"/>
+    /// path and the draft closes; this returns <c>true</c>. With no draft open this stages nothing and
+    /// returns <c>false</c>. Nothing is written to the file until the pending changes are applied.
+    /// </summary>
+    public bool CommitNewEntry()
+    {
+        if (!IsAddingEntry)
+        {
+            return false;
+        }
+
+        if (IsBlankDraft(NewEntry))
+        {
+            CancelAddEntry();
+            return true;
+        }
+
+        if (!NewEntry.IsValid)
+        {
+            return false;
+        }
+
+        SaveNewEntry();
+        IsAddingEntry = false;
+        AddingEntryCategory = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Closes the open inline "new entry" draft without staging anything, discarding whatever was
+    /// typed into it. Safe to call when no draft is open.
+    /// </summary>
+    public void CancelAddEntry()
+    {
+        NewEntry.Reset();
+        IsAddingEntry = false;
+        AddingEntryCategory = null;
+    }
+
+    private static bool IsBlankDraft(EntryFormViewModel draft)
+        => string.IsNullOrWhiteSpace(draft.IpAddress)
+            && string.IsNullOrWhiteSpace(draft.Hostname)
+            && string.IsNullOrWhiteSpace(draft.Comment);
 
     /// <summary>
     /// Begins editing <paramref name="entry"/> by loading its IP address, hostname, comment and

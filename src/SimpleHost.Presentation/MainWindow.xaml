@@ -232,7 +232,7 @@
                                             <ui:Button Margin="6,0,0,0"
                                                        Padding="6,2"
                                                        VerticalAlignment="Center"
-                                                       Appearance="Subtle"
+                                                       Appearance="Transparent"
                                                        Icon="{ui:SymbolIcon Add24}"
                                                        ToolTip="Add an entry to this category"
                                                        Click="OnAddEntryInlineClick" />
@@ -347,7 +347,7 @@
                                                          so those hover buttons are gone; only delete needs its own control. -->
                                                     <ui:Button Grid.Column="4"
                                                                VerticalAlignment="Center"
-                                                               Appearance="Subtle"
+                                                               Appearance="Transparent"
                                                                Icon="{ui:SymbolIcon Delete24}"
                                                                ToolTip="Delete this entry"
                                                                Click="OnDeleteEntryClick" />
@@ -421,7 +421,7 @@
                                                        ToolTip="Add this entry"
                                                        Click="OnAddRowConfirmClick" />
                                             <ui:Button Margin="6,0,0,0"
-                                                       Appearance="Subtle"
+                                                       Appearance="Transparent"
                                                        Icon="{ui:SymbolIcon Dismiss24}"
                                                        ToolTip="Cancel"
                                                        Click="OnAddRowCancelClick" />
@@ -468,7 +468,7 @@
                                        Margin="6,0,0,0"
                                        Padding="6,2"
                                        VerticalAlignment="Center"
-                                       Appearance="Subtle"
+                                       Appearance="Transparent"
                                        Icon="{ui:SymbolIcon Add24}"
                                        ToolTip="Create this category"
                                        Click="OnCreateCategoryClick" />

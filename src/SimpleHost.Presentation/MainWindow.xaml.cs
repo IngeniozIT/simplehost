@@ -1,5 +1,7 @@
 using System;
 using System.Windows;
+using System.Windows.Documents;
+using System.Windows.Media.Animation;
 using SimpleHost.Presentation.ViewModels;
 using SimpleHost.Presentation.ViewModels.DeepLinks;
 
@@ -22,9 +24,22 @@ namespace SimpleHost.Presentation;
 /// </summary>
 public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 {
+    // How tall the animated insertion gap grows, and how quickly it opens and closes. The gap opens
+    // above the row the cursor is over, which is exactly where a dropped entry lands (see OnRowDrop).
+    private static readonly TimeSpan GapOpenDuration = TimeSpan.FromMilliseconds(150);
+    private static readonly TimeSpan GapCloseDuration = TimeSpan.FromMilliseconds(120);
+
     private readonly MainViewModel _viewModel;
     private System.Windows.Point _dragStartPoint;
     private HostEntryViewModel? _dragCandidate;
+
+    // Live state for the in-flight drag: the floating ghost, its layer, the dimmed source row, where
+    // inside that row the user grabbed, and the row currently showing an opened insertion gap.
+    private DragAdorner? _dragAdorner;
+    private AdornerLayer? _adornerLayer;
+    private System.Windows.UIElement? _draggedRow;
+    private System.Windows.Vector _grabOffset;
+    private System.Windows.Controls.Border? _gapRow;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -432,8 +447,21 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         }
 
         _dragCandidate = null;
-        var data = new System.Windows.DataObject(typeof(HostEntryViewModel), entry);
-        System.Windows.DragDrop.DoDragDrop((DependencyObject)sender, data, System.Windows.DragDropEffects.Move);
+        var row = (System.Windows.UIElement)sender;
+
+        // Show the floating ghost and dim the source row for the duration of the drag. DoDragDrop is
+        // blocking, so the drag visuals are always torn down in the finally, whether the user drops or
+        // presses Escape. The drop itself (OnRowDrop / OnCategoryDrop) is left exactly as it was.
+        BeginDragVisual(row, e.GetPosition(row));
+        try
+        {
+            var data = new System.Windows.DataObject(typeof(HostEntryViewModel), entry);
+            System.Windows.DragDrop.DoDragDrop((DependencyObject)sender, data, System.Windows.DragDropEffects.Move);
+        }
+        finally
+        {
+            EndDragVisual();
+        }
     }
 
     private void OnEntryDragOver(object sender, System.Windows.DragEventArgs e)
@@ -442,6 +470,177 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             ? System.Windows.DragDropEffects.Move
             : System.Windows.DragDropEffects.None;
         e.Handled = true;
+    }
+
+    // --- Drag visuals: the floating ghost and the animated insertion gap ---------------------
+
+    private void OnEntriesPreviewDragOver(object sender, System.Windows.DragEventArgs e)
+    {
+        // Fires continuously as the cursor moves anywhere over the list while a drag is in flight.
+        // Keep the ghost under the cursor and open a gap on the row it would drop onto.
+        if (_dragAdorner is null)
+        {
+            return;
+        }
+
+        MoveGhost(e.GetPosition(RootGrid));
+        UpdateInsertionGap(e.OriginalSource as DependencyObject);
+    }
+
+    private void BeginDragVisual(System.Windows.UIElement row, System.Windows.Point grabPoint)
+    {
+        _adornerLayer = AdornerLayer.GetAdornerLayer(RootGrid);
+        if (_adornerLayer is null || row is not FrameworkElement rowElement)
+        {
+            // No adorner layer (unexpected): fall back to a plain drag with no ghost.
+            return;
+        }
+
+        _draggedRow = row;
+        _grabOffset = new System.Windows.Vector(grabPoint.X, grabPoint.Y);
+        _dragAdorner = new DragAdorner(RootGrid, rowElement);
+        _adornerLayer.Add(_dragAdorner);
+
+        // Dim the original so the ghost reads as the row lifted out of the list.
+        row.Opacity = 0.35;
+    }
+
+    private void MoveGhost(System.Windows.Point cursorInRoot)
+        => _dragAdorner?.SetOffset(new System.Windows.Point(
+            cursorInRoot.X - _grabOffset.X, cursorInRoot.Y - _grabOffset.Y));
+
+    private void UpdateInsertionGap(DependencyObject? overSource)
+    {
+        var row = RowBorderOf(overSource);
+
+        if (row is null)
+        {
+            // Over a category header, the opened gap itself, or empty space. Leave the current gap in
+            // place rather than fighting the layout shift the gap causes: opening a gap above a row
+            // pushes that row down, so the cursor can land in the gap (which belongs to no row) — and
+            // closing on that would flicker. The gap is always closed when the drag ends (EndDragVisual)
+            // and is replaced the moment the cursor reaches another row.
+            return;
+        }
+
+        if (ReferenceEquals(row, _draggedRow))
+        {
+            // Hovering the dragged entry's own slot: no meaningful move, so show no gap.
+            CloseGap();
+            return;
+        }
+
+        OpenGap(row);
+    }
+
+    private void OpenGap(System.Windows.Controls.Border row)
+    {
+        if (ReferenceEquals(_gapRow, row))
+        {
+            return;
+        }
+
+        CloseGap();
+        _gapRow = row;
+
+        // Grow the row's top margin so a gap opens above it — the slot the entry would drop into.
+        var gapHeight = _draggedRow is FrameworkElement dragged && dragged.RenderSize.Height > 0
+            ? dragged.RenderSize.Height
+            : 34.0;
+        var animation = new ThicknessAnimation(new Thickness(0, 1 + gapHeight, 0, 1), GapOpenDuration)
+        {
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+        };
+        row.BeginAnimation(FrameworkElement.MarginProperty, animation);
+    }
+
+    private void CloseGap()
+    {
+        if (_gapRow is not { } row)
+        {
+            return;
+        }
+
+        _gapRow = null;
+
+        // Animate the margin back to its resting value, then release the animation so the XAML value
+        // (0,1) governs the row again.
+        var animation = new ThicknessAnimation(new Thickness(0, 1, 0, 1), GapCloseDuration)
+        {
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+        };
+        animation.Completed += (_, _) => row.BeginAnimation(FrameworkElement.MarginProperty, null);
+        row.BeginAnimation(FrameworkElement.MarginProperty, animation);
+    }
+
+    private void EndDragVisual()
+    {
+        CloseGap();
+
+        if (_draggedRow is not null)
+        {
+            // Clear the local opacity so the disabled-row dimming trigger (0.55) can take over again.
+            _draggedRow.ClearValue(System.Windows.UIElement.OpacityProperty);
+            _draggedRow = null;
+        }
+
+        if (_adornerLayer is not null && _dragAdorner is not null)
+        {
+            _adornerLayer.Remove(_dragAdorner);
+        }
+
+        _dragAdorner = null;
+        _adornerLayer = null;
+    }
+
+    private static System.Windows.Controls.Border? RowBorderOf(DependencyObject? source)
+    {
+        for (var current = source; current is not null; current = ParentOf(current))
+        {
+            if (current is System.Windows.Controls.Border { Name: "Row" } row)
+            {
+                return row;
+            }
+        }
+
+        return null;
+    }
+
+    private void OnEntriesDrop(object sender, System.Windows.DragEventArgs e)
+    {
+        // A drop that lands in the opened gap (which belongs to no row) or other empty list space
+        // still has a clear intended target: the row the gap was opened above. Honor it so dropping
+        // into the visible gap reorders/moves exactly as dropping on that row would — the same
+        // ReorderEntry / MoveEntry staging as OnRowDrop. Drops that hit a row or a category header are
+        // already handled (and marked Handled) by OnRowDrop / OnCategoryDrop and never reach here.
+        e.Handled = true;
+
+        if (_gapRow is not { } gapRow
+            || DraggedEntry(e) is not { } entry
+            || gapRow.DataContext is not HostEntryViewModel target
+            || ReferenceEquals(entry, target))
+        {
+            return;
+        }
+
+        var targetGroup = GroupContaining(gapRow);
+        if (targetGroup is null)
+        {
+            return;
+        }
+
+        if (CategoryEquals(CurrentCategoryOf(entry), targetGroup.Name))
+        {
+            var index = IndexOf(targetGroup, target);
+            if (index >= 0)
+            {
+                _viewModel.ReorderEntry(entry, index);
+            }
+        }
+        else
+        {
+            _viewModel.MoveEntry(entry, targetGroup.Name);
+        }
     }
 
     private void OnCategoryDrop(object sender, System.Windows.DragEventArgs e)

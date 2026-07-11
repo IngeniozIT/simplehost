@@ -17,7 +17,10 @@
         <local:CountToVisibilityConverter x:Key="CountToVisibility" />
     </ui:FluentWindow.Resources>
 
-    <Grid>
+    <!-- The AdornerDecorator guarantees an adorner layer for the drag-reorder ghost, independently of
+         whatever the FluentWindow control template provides. -->
+    <AdornerDecorator>
+    <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -138,6 +141,10 @@
 
                     <!-- The grouped host entries: the "No category" group first, then each category. -->
                     <ScrollViewer Grid.Row="4"
+                                  x:Name="EntriesScroller"
+                                  AllowDrop="True"
+                                  PreviewDragOver="OnEntriesPreviewDragOver"
+                                  Drop="OnEntriesDrop"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl ItemsSource="{Binding VisibleGroups}">
@@ -444,4 +451,5 @@
 
         </TabControl>
     </Grid>
+    </AdornerDecorator>
 </ui:FluentWindow>

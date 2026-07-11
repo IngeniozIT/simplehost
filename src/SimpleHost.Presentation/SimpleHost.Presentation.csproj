@@ -9,6 +9,19 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>SimpleHost</AssemblyName>
     <RootNamespace>SimpleHost.Presentation</RootNamespace>
+
+    <!-- The single drop-in source image. Replace this one PNG to change every icon the app shows
+         (the .exe file icon, the window title bar / taskbar, and the system-tray icon): the .ico
+         below is regenerated from it automatically on build. -->
+    <AppIconSourcePng>$(MSBuildProjectDirectory)/Assets/app-icon.png</AppIconSourcePng>
+    <!-- The multi-resolution .ico the C# compiler embeds into SimpleHost.exe. Generated from the
+         source PNG by the GenerateAppIcon target below. Anchored to an absolute path under obj/ (which
+         is git-ignored and cleaned by the build) so both WPF compile passes — the markup-compile temp
+         project and the real compile — resolve it identically, regardless of RID/config subfolders. -->
+    <GeneratedAppIcon>$(MSBuildProjectDirectory)/obj/app-icon.ico</GeneratedAppIcon>
+    <ApplicationIcon>$(GeneratedAppIcon)</ApplicationIcon>
+    <!-- The cross-platform PNG->ICO helper (tools/IconGenerator). Not shipped, not in the solution. -->
+    <IconGeneratorProject>$(MSBuildProjectDirectory)/../../tools/IconGenerator/IconGenerator.csproj</IconGeneratorProject>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,9 +29,28 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The source PNG, embedded as a WPF resource so the window, title bar and tray can load it at
+         runtime by pack URI (see MainWindow.xaml and SimpleHostTrayIcon.cs). -->
+    <Resource Include="Assets/app-icon.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\SimpleHost.Application\SimpleHost.Application.csproj" />
     <ProjectReference Include="..\SimpleHost.Infrastructure\SimpleHost.Infrastructure.csproj" />
     <ProjectReference Include="..\SimpleHost.Presentation.ViewModels\SimpleHost.Presentation.ViewModels.csproj" />
   </ItemGroup>
+
+  <!-- Convert the source PNG into a multi-resolution .ico as part of the build, so replacing
+       Assets/app-icon.png regenerates the embedded .exe icon with no manual step. The generator is
+       cross-platform (SixLabors.ImageSharp), so this works on the Linux/WSL 'dotnet publish' host
+       used by scripts/package-windows.sh. Incremental: only re-runs when the PNG or generator change. -->
+  <Target Name="GenerateAppIcon"
+          BeforeTargets="ResolveApplicationIcon;BeforeBuild;CoreCompile"
+          Inputs="$(AppIconSourcePng);$(MSBuildProjectDirectory)/../../tools/IconGenerator/Program.cs"
+          Outputs="$(GeneratedAppIcon)">
+    <MakeDir Directories="$(MSBuildProjectDirectory)/obj" />
+    <Exec Command="dotnet run --project &quot;$(IconGeneratorProject)&quot; -c Release -- &quot;$(AppIconSourcePng)&quot; &quot;$(GeneratedAppIcon)&quot;"
+          WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
 
 </Project>

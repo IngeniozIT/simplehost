@@ -4,6 +4,7 @@
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:local="clr-namespace:SimpleHost.Presentation"
                  Title="SimpleHost"
+                 Icon="pack://application:,,,/Assets/app-icon.png"
                  Height="680"
                  Width="980"
                  MinHeight="480"
@@ -47,7 +48,14 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="SimpleHost" />
+        <!-- The window uses ExtendsContentIntoTitleBar, so the visible top-left icon is the one the
+             TitleBar draws (Icon below); the window's Icon property above drives the taskbar / Alt-Tab
+             thumbnail. Both come from the same source PNG (Assets/app-icon.png). -->
+        <ui:TitleBar Grid.Row="0" Title="SimpleHost">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/Assets/app-icon.png" />
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
 
         <!-- Traditional Windows menu bar. Settings, Import/Export, Profiles and Subscriptions are
              reached from here — as menu items that open dialogs, or a checkable option — leaving the

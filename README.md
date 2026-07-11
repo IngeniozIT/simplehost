@@ -262,6 +262,31 @@ Notes for WSL development:
 
 ---
 
+## App icon
+
+Every icon the app shows is driven by **one source image**:
+
+```text
+src/SimpleHost.Presentation/Assets/app-icon.png
+```
+
+**To change the icon, replace that single PNG** (a square image, ideally 256×256, is best)
+and rebuild — no other step. That one file feeds all three places SimpleHost shows an icon:
+
+- **the `SimpleHost.exe` file icon** — a multi-resolution `.ico` (16/24/32/48/64/128/256 px)
+  is regenerated from the PNG on every build and embedded into the executable by the compiler;
+- **the window** — the title-bar icon and the taskbar / Alt-Tab thumbnail;
+- **the system-tray icon.**
+
+The PNG → `.ico` conversion runs as a build step (the `GenerateAppIcon` target in
+`SimpleHost.Presentation.csproj`, backed by the small `tools/IconGenerator` helper). It uses
+the cross-platform [SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) library —
+**no `System.Drawing.Common`, no ImageMagick** — so it also works on the Linux/WSL
+`dotnet publish` host used by `scripts/package-windows.sh` (`make build`). The generated
+`.ico` lives under `obj/` and is never committed; only the source PNG is.
+
+---
+
 ## Building a release
 
 ```bash

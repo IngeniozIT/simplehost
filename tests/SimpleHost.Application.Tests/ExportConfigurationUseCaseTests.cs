@@ -75,9 +75,6 @@ public class ExportConfigurationUseCaseTests
 
         public string? ExportedPath { get; private set; }
 
-        public void ExportCategory(CategoryGroup group, string destinationPath)
-            => throw new NotSupportedException();
-
         public void ExportConfiguration(IReadOnlyList<CategoryGroup> groups, string destinationPath)
         {
             WasCalled = true;

@@ -5,7 +5,6 @@ using SimpleHost.Application.Ports;
 using SimpleHost.Application.Startup;
 using SimpleHost.Application.UseCases.ApplyPendingChanges;
 using SimpleHost.Application.UseCases.DiscardPendingChanges;
-using SimpleHost.Application.UseCases.ExportCategory;
 using SimpleHost.Application.UseCases.ExportConfiguration;
 using SimpleHost.Application.UseCases.FilterEntriesByCategory;
 using SimpleHost.Application.UseCases.ImportHostsFile;
@@ -106,7 +105,6 @@ internal sealed class CompositionRoot : IDisposable
             new SubscribeToRemoteHostsListUseCase(remoteFetcher, repository),
             new RefreshSubscriptionUseCase(remoteFetcher, repository),
             new RefreshSubscriptionsUseCase(subscriptionCatalog, remoteFetcher, repository),
-            new ExportCategoryUseCase(repository, exporter),
             new ExportConfigurationUseCase(repository, exporter),
             new ImportHostsFileUseCase(importer, repository),
             new PendingChangeSet());

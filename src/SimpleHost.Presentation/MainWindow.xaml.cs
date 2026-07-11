@@ -560,55 +560,23 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private void OnImportClick(object sender, RoutedEventArgs e)
     {
-        // Import needs a target category. It is picked here through the same modal category picker used
-        // for a move (the "No category" group's Name is null), then the source file is chosen.
-        if (PickCategory("Import into category", "Import into:", "Import") is not { } pick)
-        {
-            return;
-        }
-
+        // Import reads a chosen hosts file straight into the "No category" (uncategorised) set — no
+        // category is selected, so the user only picks the source file.
         var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Import hosts file" };
         if (dialog.ShowDialog(this) == true)
         {
-            _viewModel.ImportEntries(dialog.FileName, pick.Category);
-        }
-    }
-
-    private void OnExportCategoryClick(object sender, RoutedEventArgs e)
-    {
-        // Export-category needs the source category, picked through the same modal category picker
-        // (null Name is the "No category" group), then the destination file is chosen.
-        if (PickCategory("Export category", "Export category:", "Export") is not { } pick)
-        {
-            return;
-        }
-
-        var dialog = new Microsoft.Win32.SaveFileDialog { Title = "Export category", FileName = "hosts" };
-        if (dialog.ShowDialog(this) == true)
-        {
-            _viewModel.ExportCategory(pick.Category, dialog.FileName);
+            _viewModel.ImportEntries(dialog.FileName, null);
         }
     }
 
     private void OnExportConfigurationClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new Microsoft.Win32.SaveFileDialog { Title = "Export configuration", FileName = "hosts" };
+        var dialog = new Microsoft.Win32.SaveFileDialog { Title = "Export hosts", FileName = "hosts" };
         if (dialog.ShowDialog(this) == true)
         {
             _viewModel.ExportConfiguration(dialog.FileName);
         }
     }
-
-    // Show the shared category picker with import/export-specific wording and return the chosen
-    // category (its Name is null for "No category"), or null if the user cancelled. The nested nullable
-    // is wrapped so a genuine "No category" choice is distinguishable from a cancel.
-    private CategoryPick? PickCategory(string title, string prompt, string confirmLabel)
-    {
-        var picker = new CategoryPickerWindow(_viewModel.Groups, title, prompt, confirmLabel) { Owner = this };
-        return picker.ShowDialog() == true ? new CategoryPick(picker.ChosenCategory) : null;
-    }
-
-    private readonly record struct CategoryPick(string? Category);
 
     private void ReportOperationFailure(string message)
         // A subscription/import/export failure is reported over whichever window is active — the

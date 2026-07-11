@@ -6,7 +6,6 @@ using System.Windows.Input;
 using SimpleHost.Application.Pending;
 using SimpleHost.Application.UseCases.ApplyPendingChanges;
 using SimpleHost.Application.UseCases.DiscardPendingChanges;
-using SimpleHost.Application.UseCases.ExportCategory;
 using SimpleHost.Application.UseCases.ExportConfiguration;
 using SimpleHost.Application.UseCases.FilterEntriesByCategory;
 using SimpleHost.Application.UseCases.ImportHostsFile;
@@ -52,7 +51,6 @@ public sealed class MainViewModel : ViewModelBase
     private readonly SubscribeToRemoteHostsListUseCase _subscribeToRemoteList;
     private readonly RefreshSubscriptionUseCase _refreshSubscription;
     private readonly RefreshSubscriptionsUseCase _refreshSubscriptions;
-    private readonly ExportCategoryUseCase _exportCategory;
     private readonly ExportConfigurationUseCase _exportConfiguration;
     private readonly ImportHostsFileUseCase _importHostsFile;
     private readonly PendingChangeSet _pendingChanges;
@@ -86,7 +84,6 @@ public sealed class MainViewModel : ViewModelBase
         SubscribeToRemoteHostsListUseCase subscribeToRemoteList,
         RefreshSubscriptionUseCase refreshSubscription,
         RefreshSubscriptionsUseCase refreshSubscriptions,
-        ExportCategoryUseCase exportCategory,
         ExportConfigurationUseCase exportConfiguration,
         ImportHostsFileUseCase importHostsFile,
         PendingChangeSet pendingChanges)
@@ -110,7 +107,6 @@ public sealed class MainViewModel : ViewModelBase
         _subscribeToRemoteList = subscribeToRemoteList;
         _refreshSubscription = refreshSubscription;
         _refreshSubscriptions = refreshSubscriptions;
-        _exportCategory = exportCategory;
         _exportConfiguration = exportConfiguration;
         _importHostsFile = importHostsFile;
         _pendingChanges = pendingChanges;
@@ -1120,16 +1116,6 @@ public sealed class MainViewModel : ViewModelBase
 
         Refresh();
     }
-
-    /// <summary>
-    /// Exports the category named <paramref name="category"/> — or the "No category" group when it is
-    /// <c>null</c> — as a standalone <c>hosts</c> file at <paramref name="destinationPath"/> through
-    /// the export-category use case. Exporting only reads the managed file, so the displayed state is
-    /// unchanged. A blank destination or a category that does not exist writes nothing and is reported
-    /// through <see cref="ImportExportFailed"/>.
-    /// </summary>
-    public void ExportCategory(string? category, string destinationPath)
-        => TryRunImportExport(() => _exportCategory.Execute(category, destinationPath));
 
     /// <summary>
     /// Exports the whole configuration — every category and its entries — as a single standalone

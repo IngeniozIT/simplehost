@@ -4,7 +4,6 @@ using SimpleHost.Application.Pending;
 using SimpleHost.Application.Ports;
 using SimpleHost.Application.UseCases.ApplyPendingChanges;
 using SimpleHost.Application.UseCases.DiscardPendingChanges;
-using SimpleHost.Application.UseCases.ExportCategory;
 using SimpleHost.Application.UseCases.ExportConfiguration;
 using SimpleHost.Application.UseCases.FilterEntriesByCategory;
 using SimpleHost.Application.UseCases.ImportHostsFile;
@@ -113,7 +112,6 @@ public class MainViewModelDeepLinkTests
             new RefreshSubscriptionUseCase(new StubRemoteHostsListFetcher(), repository),
             new RefreshSubscriptionsUseCase(
                 new StubSubscriptionCatalog(), new StubRemoteHostsListFetcher(), repository),
-            new ExportCategoryUseCase(repository, new StubHostsFileExporter()),
             new ExportConfigurationUseCase(repository, new StubHostsFileExporter()),
             new ImportHostsFileUseCase(new StubHostsFileImporter(), repository),
             new PendingChangeSet());
@@ -130,9 +128,6 @@ public class MainViewModelDeepLinkTests
 
     private sealed class StubHostsFileExporter : IHostsFileExporter
     {
-        public void ExportCategory(CategoryGroup group, string destinationPath)
-            => throw new NotSupportedException();
-
         public void ExportConfiguration(IReadOnlyList<CategoryGroup> groups, string destinationPath)
             => throw new NotSupportedException();
     }

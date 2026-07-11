@@ -83,9 +83,8 @@
              title bar and is themed by WPF-UI in both light and dark. -->
         <Menu Grid.Row="1" Margin="8,0,8,0" Background="Transparent">
             <MenuItem Header="_File">
-                <MenuItem Header="_Import into Category..." Click="OnImportClick" />
-                <MenuItem Header="_Export Category..." Click="OnExportCategoryClick" />
-                <MenuItem Header="Export _All..." Click="OnExportConfigurationClick" />
+                <MenuItem Header="_Import hosts..." Click="OnImportClick" />
+                <MenuItem Header="_Export hosts..." Click="OnExportConfigurationClick" />
             </MenuItem>
             <!-- Below the static Save entry and separator, one item per saved profile is generated in
                  code-behind from MainViewModel.Profiles (kept in sync via its CollectionChanged), so a

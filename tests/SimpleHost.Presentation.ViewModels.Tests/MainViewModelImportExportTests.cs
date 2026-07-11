@@ -6,7 +6,6 @@ using SimpleHost.Application.Pending;
 using SimpleHost.Application.Ports;
 using SimpleHost.Application.UseCases.ApplyPendingChanges;
 using SimpleHost.Application.UseCases.DiscardPendingChanges;
-using SimpleHost.Application.UseCases.ExportCategory;
 using SimpleHost.Application.UseCases.ExportConfiguration;
 using SimpleHost.Application.UseCases.FilterEntriesByCategory;
 using SimpleHost.Application.UseCases.ImportHostsFile;
@@ -30,73 +29,6 @@ namespace SimpleHost.Presentation.ViewModels.Tests;
 
 public class MainViewModelImportExportTests
 {
-    [Fact]
-    public void Exporting_a_category_writes_its_entries_to_the_chosen_file()
-    {
-        var repository = new StatefulHostsFileRepository();
-        repository.Seed("Development", new HostEntry("10.0.0.1", "api.test"));
-        var exporter = new RecordingHostsFileExporter();
-        var viewModel = BuildViewModel(repository, exporter: exporter);
-        viewModel.Load();
-
-        viewModel.ExportCategory("Development", "/tmp/dev.hosts");
-
-        exporter.ExportedCategory.ShouldNotBeNull();
-        exporter.ExportedCategory!.Name.ShouldBe("Development");
-        exporter.ExportedCategory.Entries.Select(entry => entry.Hostname).ShouldBe(new[] { "api.test" });
-        exporter.ExportedCategoryPath.ShouldBe("/tmp/dev.hosts");
-    }
-
-    [Fact]
-    public void Exporting_the_no_category_group_selects_the_uncategorized_entries()
-    {
-        var repository = new StatefulHostsFileRepository();
-        repository.Seed(null, new HostEntry("127.0.0.1", "localhost"));
-        var exporter = new RecordingHostsFileExporter();
-        var viewModel = BuildViewModel(repository, exporter: exporter);
-        viewModel.Load();
-
-        viewModel.ExportCategory(null, "/tmp/none.hosts");
-
-        exporter.ExportedCategory.ShouldNotBeNull();
-        exporter.ExportedCategory!.Name.ShouldBeNull();
-        exporter.ExportedCategory.Entries.Select(entry => entry.Hostname).ShouldBe(new[] { "localhost" });
-    }
-
-    [Fact]
-    public void Exporting_a_missing_category_reports_the_failure()
-    {
-        var repository = new StatefulHostsFileRepository();
-        repository.Seed(null, new HostEntry("127.0.0.1", "localhost"));
-        var exporter = new RecordingHostsFileExporter();
-        var viewModel = BuildViewModel(repository, exporter: exporter);
-        viewModel.Load();
-        string? reported = null;
-        viewModel.ImportExportFailed = message => reported = message;
-
-        viewModel.ExportCategory("Missing", "/tmp/missing.hosts");
-
-        reported.ShouldNotBeNull();
-        exporter.ExportedCategory.ShouldBeNull();
-    }
-
-    [Fact]
-    public void Exporting_a_category_with_a_blank_destination_reports_the_failure()
-    {
-        var repository = new StatefulHostsFileRepository();
-        repository.Seed("Development", new HostEntry("10.0.0.1", "api.test"));
-        var exporter = new RecordingHostsFileExporter();
-        var viewModel = BuildViewModel(repository, exporter: exporter);
-        viewModel.Load();
-        string? reported = null;
-        viewModel.ImportExportFailed = message => reported = message;
-
-        viewModel.ExportCategory("Development", "   ");
-
-        reported.ShouldNotBeNull();
-        exporter.ExportedCategory.ShouldBeNull();
-    }
-
     [Fact]
     public void Exporting_the_whole_configuration_writes_every_category_to_the_chosen_file()
     {
@@ -229,7 +161,6 @@ public class MainViewModelImportExportTests
 
         Should.NotThrow(() =>
         {
-            viewModel.ExportCategory("Missing", "/tmp/x.hosts");
             viewModel.ExportConfiguration("   ");
             viewModel.ImportEntries("   ", null);
         });
@@ -256,26 +187,15 @@ public class MainViewModelImportExportTests
             new SubscribeToRemoteHostsListUseCase(new StubRemoteHostsListFetcher(), repository),
             new RefreshSubscriptionUseCase(new StubRemoteHostsListFetcher(), repository),
             new RefreshSubscriptionsUseCase(new StubSubscriptionCatalog(), new StubRemoteHostsListFetcher(), repository),
-            new ExportCategoryUseCase(repository, exporter ?? new RecordingHostsFileExporter()),
             new ExportConfigurationUseCase(repository, exporter ?? new RecordingHostsFileExporter()),
             new ImportHostsFileUseCase(importer ?? new FakeHostsFileImporter(), repository),
             new PendingChangeSet());
 
     private sealed class RecordingHostsFileExporter : IHostsFileExporter
     {
-        public CategoryGroup? ExportedCategory { get; private set; }
-
-        public string? ExportedCategoryPath { get; private set; }
-
         public IReadOnlyList<CategoryGroup>? ExportedConfiguration { get; private set; }
 
         public string? ExportedConfigurationPath { get; private set; }
-
-        public void ExportCategory(CategoryGroup group, string destinationPath)
-        {
-            ExportedCategory = group;
-            ExportedCategoryPath = destinationPath;
-        }
 
         public void ExportConfiguration(IReadOnlyList<CategoryGroup> groups, string destinationPath)
         {

@@ -159,6 +159,7 @@
                                   Drop="OnEntriesDrop"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
                         <ItemsControl ItemsSource="{Binding VisibleGroups}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -406,6 +407,41 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+
+                        <!-- Placeholder "new category" affordance, styled to read like a real, empty
+                             category header rather than a plain form: type a name where a category title
+                             would be and click the plus to create that category. It stages through the same
+                             validated MainViewModel.CreateCategory path (a CreateCategoryChange pending
+                             change), after which the new, empty category appears in the list above and the
+                             input clears for the next one. A blank or whitespace-only name creates nothing. -->
+                        <StackPanel Margin="0,0,0,18">
+                            <Border BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="2,0,2,6"
+                                    Margin="0,0,0,6"
+                                    Background="Transparent">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <ui:TextBox x:Name="NewCategoryBox"
+                                                Width="300"
+                                                FontSize="16"
+                                                FontWeight="SemiBold"
+                                                VerticalAlignment="Center"
+                                                PlaceholderText="New category"
+                                                ToolTip="Type a name and click the plus to create a category"
+                                                KeyDown="OnNewCategoryKeyDown" />
+                                    <!-- Creates the category named in the box (mirrors the per-category add-entry plus). -->
+                                    <ui:Button x:Name="CreateCategoryButton"
+                                               Margin="6,0,0,0"
+                                               Padding="6,2"
+                                               VerticalAlignment="Center"
+                                               Appearance="Subtle"
+                                               Icon="{ui:SymbolIcon Add24}"
+                                               ToolTip="Create this category"
+                                               Click="OnCreateCategoryClick" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                        </StackPanel>
                     </ScrollViewer>
 
                     <!-- Pending-changes bar: docked beneath the list, shown only while changes are staged. -->
@@ -476,17 +512,6 @@
                         </StackPanel>
                     </ui:Card>
 
-                    <ui:Card Margin="0,12,0,0">
-                        <StackPanel>
-                            <TextBlock Text="Create a category" FontWeight="SemiBold" Margin="0,0,0,6" />
-                            <StackPanel Orientation="Horizontal">
-                                <ui:TextBox x:Name="NewCategoryBox"
-                                            Width="240"
-                                            PlaceholderText="Category name" />
-                                <Button Content="Create category" Margin="8,0,0,0" Click="OnCreateCategoryClick" />
-                            </StackPanel>
-                        </StackPanel>
-                    </ui:Card>
                 </StackPanel>
             </TabItem>
 

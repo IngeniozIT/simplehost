@@ -428,6 +428,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private void OnCreateCategoryClick(object sender, RoutedEventArgs e)
     {
+        // The inline "new category" affordance in the Entries list: staging a create rebuilds the group
+        // list so the new, empty category appears above, then the input clears and keeps focus so the
+        // user can type the next one. A blank or whitespace-only name creates nothing.
         var name = NewCategoryBox.Text.Trim();
         if (name.Length == 0)
         {
@@ -436,6 +439,18 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         _viewModel.CreateCategory(name);
         NewCategoryBox.Clear();
+        NewCategoryBox.Focus();
+    }
+
+    private void OnNewCategoryKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        // Enter creates the category, just like clicking the plus; consume the key so it does not also
+        // ring the default-button bell.
+        if (e.Key == System.Windows.Input.Key.Enter)
+        {
+            e.Handled = true;
+            OnCreateCategoryClick(sender, e);
+        }
     }
 
     private void OnRenameCategoryClick(object sender, RoutedEventArgs e)

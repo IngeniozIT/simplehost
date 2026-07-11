@@ -1698,9 +1698,6 @@ public class MainViewModelTests
 
         viewModel.SearchQuery = "10.0.0";
 
-        // Only the search criterion is set and no category filter is active, so this isolates the
-        // search clause of HasActiveFilter.
-        viewModel.IsCategoryFilterActive.ShouldBeFalse();
         viewModel.HasActiveFilter.ShouldBeTrue();
     }
 
@@ -1712,66 +1709,7 @@ public class MainViewModelTests
 
         viewModel.SearchQuery = "   ";
 
-        viewModel.IsCategoryFilterActive.ShouldBeFalse();
         viewModel.HasActiveFilter.ShouldBeFalse();
-    }
-
-    [Fact]
-    public void A_category_filter_narrows_the_visible_groups_to_the_chosen_category()
-    {
-        var viewModel = BuildViewModel(SampleRepository());
-        viewModel.Load();
-
-        viewModel.FilterByCategory("Production");
-
-        viewModel.VisibleGroups.Select(group => group.DisplayName).ShouldBe(new[] { "Production" });
-        viewModel.VisibleGroups[0].Entries.Select(entry => entry.Hostname).ShouldBe(new[] { "app.prod.test" });
-        viewModel.IsCategoryFilterActive.ShouldBeTrue();
-        viewModel.CategoryFilter.ShouldBe("Production");
-        viewModel.HasActiveFilter.ShouldBeTrue();
-    }
-
-    [Fact]
-    public void A_null_category_filter_selects_the_no_category_group()
-    {
-        var viewModel = BuildViewModel(SampleRepository());
-        viewModel.Load();
-
-        viewModel.FilterByCategory(null);
-
-        viewModel.VisibleGroups.Select(group => group.DisplayName).ShouldBe(new[] { "No category" });
-        viewModel.VisibleGroups[0].Entries.Select(entry => entry.Hostname)
-            .ShouldBe(new[] { "localhost", "router.home" });
-        viewModel.IsCategoryFilterActive.ShouldBeTrue();
-        viewModel.CategoryFilter.ShouldBeNull();
-    }
-
-    [Fact]
-    public void The_search_and_category_criteria_combine_as_an_intersection()
-    {
-        var viewModel = BuildViewModel(SampleRepository());
-        viewModel.Load();
-
-        viewModel.SearchQuery = "test";
-        viewModel.FilterByCategory("Development");
-
-        // Every Development entry matches ".test", so both survive the intersection with the category.
-        viewModel.VisibleGroups.Select(group => group.DisplayName).ShouldBe(new[] { "Development" });
-        viewModel.VisibleGroups[0].Entries.Select(entry => entry.Hostname)
-            .ShouldBe(new[] { "api.dev.test", "db.dev.test" });
-    }
-
-    [Fact]
-    public void The_intersection_excludes_an_entry_that_fails_any_active_criterion()
-    {
-        var viewModel = BuildViewModel(SampleRepository());
-        viewModel.Load();
-
-        // "api" matches only api.dev.test by hostname; the Production filter then excludes it.
-        viewModel.SearchQuery = "api";
-        viewModel.FilterByCategory("Production");
-
-        viewModel.VisibleGroups.ShouldBeEmpty();
     }
 
     [Fact]
@@ -1809,36 +1747,15 @@ public class MainViewModelTests
 
         viewModel.SearchQuery = "dev";
         raised.ShouldContain(nameof(MainViewModel.HasActiveFilter));
-
-        raised.Clear();
-        viewModel.FilterByCategory("Production");
-        raised.ShouldContain(nameof(MainViewModel.HasActiveFilter));
     }
 
     [Fact]
-    public void Clearing_the_category_filter_restores_every_group()
-    {
-        var viewModel = BuildViewModel(SampleRepository());
-        viewModel.Load();
-        viewModel.FilterByCategory("Production");
-
-        viewModel.ClearCategoryFilter();
-
-        viewModel.VisibleGroups.Select(group => group.DisplayName)
-            .ShouldBe(new[] { "No category", "Development", "Production" });
-        viewModel.IsCategoryFilterActive.ShouldBeFalse();
-        viewModel.CategoryFilter.ShouldBeNull();
-        viewModel.HasActiveFilter.ShouldBeFalse();
-    }
-
-    [Fact]
-    public void Filtering_leaves_the_underlying_groups_unchanged()
+    public void Searching_leaves_the_underlying_groups_unchanged()
     {
         var viewModel = BuildViewModel(SampleRepository());
         viewModel.Load();
 
         viewModel.SearchQuery = "dev";
-        viewModel.FilterByCategory("Development");
 
         viewModel.Groups.Select(group => group.DisplayName)
             .ShouldBe(new[] { "No category", "Development", "Production" });
@@ -1852,7 +1769,7 @@ public class MainViewModelTests
         var viewModel = BuildViewModel(SampleRepository());
         viewModel.Load();
 
-        viewModel.FilterByCategory("Development");
+        viewModel.SearchQuery = "dev";
 
         var underlying = viewModel.Groups.Single(group => group.DisplayName == "Development").Entries[0];
         var visible = viewModel.VisibleGroups.Single(group => group.DisplayName == "Development").Entries[0];

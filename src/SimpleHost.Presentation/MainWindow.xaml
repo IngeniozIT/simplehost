@@ -116,7 +116,8 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!-- Command bar: search + filter. Adding an entry is inline — the plus button in
+            <!-- Command bar: a single search field. Its built-in clear icon resets the query, so no
+                 separate Clear button is needed. Adding an entry is inline — the plus button in
                  each category header opens an editable draft row in that category. -->
             <Grid Grid.Row="0" Margin="0,0,0,12">
                 <StackPanel Orientation="Horizontal">
@@ -125,17 +126,6 @@
                                 Icon="{ui:SymbolIcon Search24}"
                                 PlaceholderText="Search IP, hostname or description"
                                 Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}" />
-                    <ComboBox x:Name="CategoryFilterBox"
-                              Width="170"
-                              Margin="8,0,0,0"
-                              ItemsSource="{Binding Groups}"
-                              DisplayMemberPath="DisplayName"
-                              ToolTip="Show only one category"
-                              SelectionChanged="OnCategoryFilterChanged" />
-                    <Button Content="Clear"
-                            Margin="8,0,0,0"
-                            ToolTip="Clear the search and category filter"
-                            Click="OnClearFiltersClick" />
                 </StackPanel>
             </Grid>
 

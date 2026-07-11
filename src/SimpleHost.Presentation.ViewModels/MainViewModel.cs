@@ -62,8 +62,6 @@ public sealed class MainViewModel : ViewModelBase
     private HostEntryViewModel? _entryBeingEdited;
     private HostsFileDiff? _previewDiff;
     private string _searchQuery = string.Empty;
-    private string? _categoryFilter;
-    private bool _isCategoryFilterActive;
     private bool _flushDnsAfterSaving;
     private bool _isAddingEntry;
     private string? _addingEntryCategory;
@@ -191,17 +189,16 @@ public sealed class MainViewModel : ViewModelBase
     /// <summary>
     /// The entries grouped by category for display, in file order: the "No category" group first,
     /// then each category. Rebuilt on every load and refresh. This is the underlying data — it is
-    /// never narrowed by the active search or filter; <see cref="VisibleGroups"/> is.
+    /// never narrowed by the active search query; <see cref="VisibleGroups"/> is.
     /// </summary>
     public ObservableCollection<CategoryGroupViewModel> Groups { get; } = new();
 
     /// <summary>
     /// The grouped entries the window actually renders: <see cref="Groups"/> narrowed to those
-    /// matching the active <see cref="SearchQuery"/> and category filter. With no active filter it
-    /// mirrors <see cref="Groups"/> (empty groups included); once any criterion is active it keeps
-    /// only matching entries — combining the search and category criteria as an intersection — and
-    /// drops groups left with nothing to show. The underlying <see cref="Groups"/> is left unchanged,
-    /// so clearing the query restores the full view.
+    /// matching the active <see cref="SearchQuery"/>. With no active query it mirrors
+    /// <see cref="Groups"/> (empty groups included); once a query is active it keeps only matching
+    /// entries and drops groups left with nothing to show. The underlying <see cref="Groups"/> is
+    /// left unchanged, so clearing the query restores the full view.
     /// </summary>
     public ObservableCollection<CategoryGroupViewModel> VisibleGroups { get; } = new();
 
@@ -223,31 +220,9 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>
-    /// Whether a category filter is currently narrowing the visible list. Distinct from
-    /// <see cref="CategoryFilter"/> being <c>null</c>, which — while active — selects the
-    /// "No category" group.
-    /// </summary>
-    public bool IsCategoryFilterActive
-    {
-        get => _isCategoryFilterActive;
-        private set => SetProperty(ref _isCategoryFilterActive, value);
-    }
-
-    /// <summary>
-    /// The category the visible list is narrowed to while <see cref="IsCategoryFilterActive"/>
-    /// holds: a category name, or <c>null</c> for the "No category" group.
-    /// </summary>
-    public string? CategoryFilter
-    {
-        get => _categoryFilter;
-        private set => SetProperty(ref _categoryFilter, value);
-    }
-
-    /// <summary>Whether the search query or the category criterion is currently active.</summary>
+    /// <summary>Whether the search query is currently narrowing the visible list.</summary>
     public bool HasActiveFilter
-        => !string.IsNullOrWhiteSpace(_searchQuery)
-            || _isCategoryFilterActive;
+        => !string.IsNullOrWhiteSpace(_searchQuery);
 
     /// <summary>
     /// The entries the user has currently picked out of the list — the multi-selection the bulk
@@ -436,29 +411,6 @@ public sealed class MainViewModel : ViewModelBase
         _previewCommand.RaiseCanExecuteChanged();
     }
 
-    /// <summary>
-    /// Activates the category filter on <paramref name="category"/> — a category name, or
-    /// <c>null</c> for the "No category" group — narrowing <see cref="VisibleGroups"/> to that
-    /// category while leaving <see cref="Groups"/> unchanged.
-    /// </summary>
-    public void FilterByCategory(string? category)
-    {
-        CategoryFilter = category;
-        IsCategoryFilterActive = true;
-        OnFilterChanged();
-    }
-
-    /// <summary>
-    /// Turns the category filter off, so <see cref="VisibleGroups"/> is no longer narrowed by
-    /// category. Any active hostname or IP-address query still applies.
-    /// </summary>
-    public void ClearCategoryFilter()
-    {
-        CategoryFilter = null;
-        IsCategoryFilterActive = false;
-        OnFilterChanged();
-    }
-
     private void OnFilterChanged()
     {
         OnPropertyChanged(nameof(HasActiveFilter));
@@ -505,11 +457,6 @@ public sealed class MainViewModel : ViewModelBase
                 continue;
             }
 
-            if (_isCategoryFilterActive && group.Name != _categoryFilter)
-            {
-                continue;
-            }
-
             var entries = group.Entries.Where(MatchesSearchQuery).ToList();
             if (entries.Count > 0)
             {
@@ -522,9 +469,7 @@ public sealed class MainViewModel : ViewModelBase
     /// Whether <paramref name="entry"/> passes the active <see cref="SearchQuery"/> — a
     /// case-insensitive substring test satisfied when the query text appears in the entry's IP
     /// address, hostname OR description (the inline comment), so the three fields are searched as a
-    /// union. A blank query matches every entry. The category criterion is applied structurally in
-    /// <see cref="RebuildVisibleGroups"/> against the group the entry is shown under, so a staged move
-    /// is reflected the moment it is projected.
+    /// union. A blank query matches every entry.
     /// </summary>
     private bool MatchesSearchQuery(HostEntryViewModel entry)
     {

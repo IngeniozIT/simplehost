@@ -106,6 +106,45 @@ public sealed class RemoteHostsListFetcherTests
         handler.WasCalled.ShouldBeFalse();
     }
 
+    [Fact]
+    public void Reads_the_entries_from_a_local_file_path_without_touching_the_network()
+    {
+        var handler = new StubHttpMessageHandler("0.0.0.0 unused.example.com\n");
+        var path = Path.Combine(Path.GetTempPath(), $"simplehost-fetch-{Guid.NewGuid():N}.txt");
+        File.WriteAllText(
+            path,
+            "0.0.0.0 ads.example.com\n" +
+            "# 0.0.0.0 staging.example.com\n" +
+            "127.0.0.1 local.example.com # dev\n");
+        try
+        {
+            var fetcher = new RemoteHostsListFetcher(new HttpClient(handler), new HostsFileParser());
+
+            fetcher.Fetch(path).ShouldBe(new[]
+            {
+                new HostEntry("0.0.0.0", "ads.example.com"),
+                new HostEntry("0.0.0.0", "staging.example.com", Status: HostEntryStatus.Disabled),
+                new HostEntry("127.0.0.1", "local.example.com", "dev"),
+            });
+            handler.WasCalled.ShouldBeFalse();
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Yields_no_entries_for_a_local_file_path_that_does_not_exist_yet()
+    {
+        var handler = new StubHttpMessageHandler("0.0.0.0 unused.example.com\n");
+        var path = Path.Combine(Path.GetTempPath(), $"simplehost-missing-{Guid.NewGuid():N}.txt");
+        var fetcher = new RemoteHostsListFetcher(new HttpClient(handler), new HostsFileParser());
+
+        fetcher.Fetch(path).ShouldBeEmpty();
+        handler.WasCalled.ShouldBeFalse();
+    }
+
     private sealed class StubHttpMessageHandler(string content, HttpStatusCode statusCode = HttpStatusCode.OK)
         : HttpMessageHandler
     {

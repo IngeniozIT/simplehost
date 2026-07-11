@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using SimpleHost.Application.Ports;
+using SimpleHost.Domain.Categories;
 using SimpleHost.Domain.Entries;
 
 namespace SimpleHost.Application.Pending;
@@ -300,4 +301,30 @@ public sealed record ReorderEntryChange(HostEntry Entry, int TargetIndex) : Pend
         => repository.ReorderEntry(Entry, TargetIndex);
 
     internal override bool ActsOn(HostEntry entry) => Entry == entry;
+}
+
+/// <summary>
+/// A pending wholesale restore of the <c>hosts</c> file to a captured snapshot: the file's entire
+/// content is replaced with <paramref name="Content"/> verbatim, so every entry added, edited,
+/// deleted, moved or reordered since the snapshot was taken is undone and the file — comments and
+/// blank lines included — ends up exactly as it was. Projected, it replaces the whole grouping with
+/// <paramref name="RestoredGroups"/>, the snapshot's content already grouped, so the preview and the
+/// displayed list reflect the restored state before anything is written.
+/// </summary>
+/// <param name="Content">The raw file content to write in place of the current content.</param>
+/// <param name="RestoredGroups">That same content grouped by category, in file order.</param>
+public sealed record RestoreContentChange(
+    string Content, IReadOnlyList<CategoryGroup> RestoredGroups) : PendingChange
+{
+    internal override void ApplyTo(List<CategoryProjection> groups)
+    {
+        groups.Clear();
+        foreach (var group in RestoredGroups)
+        {
+            groups.Add(new CategoryProjection(group.Name, group.Entries));
+        }
+    }
+
+    internal override void WriteTo(IHostsFileRepository repository)
+        => ((IHostsFileContentAccessor)repository).ReplaceContent(Content);
 }

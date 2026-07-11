@@ -608,6 +608,8 @@ public class MainViewModelPendingChangesTests
         }
 
         public Profile? Find(string name) => null;
+
+        public IReadOnlyList<Profile> GetAll() => Array.Empty<Profile>();
     }
 
     private sealed class FakeElevationService(bool isElevated) : IElevationService

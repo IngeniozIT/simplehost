@@ -145,6 +145,8 @@ public class MainViewModelDeepLinkTests
         }
 
         public Profile? Find(string name) => null;
+
+        public IReadOnlyList<Profile> GetAll() => Array.Empty<Profile>();
     }
 
     private sealed class FakeElevationService : IElevationService

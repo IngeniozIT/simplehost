@@ -886,4 +886,61 @@ public class PendingChangeSetTests
         EntriesUnder(changes.ApplyTo(current), null).Select(entry => entry.Hostname)
             .ShouldBe(new[] { "web.test", "new.test" });
     }
+
+    [Fact]
+    public void Restoring_content_projects_the_captured_grouping_in_place_of_the_current_one()
+    {
+        var current = Grouping(
+            NoCategory(new HostEntry("127.0.0.1", "edited.test")),
+            new CategoryGroup("Added", new[] { new HostEntry("10.0.0.9", "new.test") }));
+        var restored = Grouping(
+            NoCategory(new HostEntry("127.0.0.1", "localhost")),
+            new CategoryGroup("Development", new[] { new HostEntry("10.0.0.1", "api.test") }));
+        var changes = new PendingChangeSet();
+
+        changes.RestoreContent("# original\n", restored);
+
+        var projection = changes.ApplyTo(current);
+        projection.Select(group => group.Name).ShouldBe(new[] { null, "Development" });
+        EntriesUnder(projection, null).ShouldBe(new[] { new HostEntry("127.0.0.1", "localhost") });
+        EntriesUnder(projection, "Development").ShouldBe(new[] { new HostEntry("10.0.0.1", "api.test") });
+    }
+
+    [Fact]
+    public void Restoring_content_discards_changes_staged_before_it()
+    {
+        var current = Grouping(NoCategory(new HostEntry("127.0.0.1", "web.test")));
+        var restored = Grouping(NoCategory(new HostEntry("127.0.0.1", "localhost")));
+        var changes = new PendingChangeSet();
+
+        changes.AddEntry(new HostEntry("10.0.0.9", "new.test"));
+        changes.RestoreContent("# original\n", restored);
+
+        EntriesUnder(changes.ApplyTo(current), null).ShouldBe(new[] { new HostEntry("127.0.0.1", "localhost") });
+    }
+
+    [Fact]
+    public void Restoring_content_records_a_pending_change()
+    {
+        var changes = new PendingChangeSet();
+
+        changes.RestoreContent("# original\n", Grouping(NoCategory()));
+
+        changes.HasChanges.ShouldBeTrue();
+        changes.Changes.ShouldHaveSingleItem().ShouldBeOfType<RestoreContentChange>();
+    }
+
+    [Fact]
+    public void Restoring_content_rejects_null_content()
+    {
+        Should.Throw<ArgumentNullException>(
+            () => new PendingChangeSet().RestoreContent(null!, Grouping(NoCategory())));
+    }
+
+    [Fact]
+    public void Restoring_content_rejects_a_null_grouping()
+    {
+        Should.Throw<ArgumentNullException>(
+            () => new PendingChangeSet().RestoreContent("# original\n", null!));
+    }
 }

@@ -918,6 +918,22 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Populates <see cref="Profiles"/> from the profiles already persisted — the ones offered for
+    /// recall when the app starts, including the built-in <c>"Default"</c> snapshot — replacing
+    /// whatever the list held. Called once at startup with the stored profiles so a saved preset or
+    /// the original-file snapshot can be switched to like any profile saved during the session.
+    /// </summary>
+    /// <param name="profiles">The persisted profiles to offer, in the order they should appear.</param>
+    public void LoadPersistedProfiles(IEnumerable<Profile> profiles)
+    {
+        Profiles.Clear();
+        foreach (var profile in profiles)
+        {
+            Profiles.Add(profile);
+        }
+    }
+
+    /// <summary>
     /// Saves the current set of enabled categories as a named profile through the save-profile use
     /// case and lists it under <see cref="Profiles"/>, replacing any profile already stored under the
     /// same (trimmed) name. A category counts as enabled when at least one of its entries is
@@ -944,10 +960,12 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Recalls the saved profile named <paramref name="name"/> by staging the pending changes that
-    /// enable every category it lists and disable every other category — including the "No category"
-    /// group — so the recall goes through the same explicit apply step as any other edit rather than
-    /// writing the file directly. Entries already in the target status stage nothing. A name that
+    /// Recalls the saved profile named <paramref name="name"/> by staging pending changes, going
+    /// through the same explicit apply step as any other edit rather than writing the file directly.
+    /// A category preset stages enabling every category it lists and disabling every other one —
+    /// including the "No category" group — with entries already in the target status staging nothing.
+    /// A snapshot profile (such as the built-in <c>"Default"</c>) instead stages restoring the whole
+    /// captured file content, reverting it to how it was when the snapshot was taken. A name that
     /// matches no saved profile stages nothing. Nothing is written to the file until the pending
     /// changes are applied.
     /// </summary>
@@ -957,6 +975,12 @@ public sealed class MainViewModel : ViewModelBase
             saved => string.Equals(saved.Name, name, StringComparison.Ordinal));
         if (profile is null)
         {
+            return;
+        }
+
+        if (profile.RestoresSnapshot)
+        {
+            _pendingChanges.RestoreContent(profile.Snapshot!, profile.SnapshotGroups!);
             return;
         }
 

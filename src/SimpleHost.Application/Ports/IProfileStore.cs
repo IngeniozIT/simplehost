@@ -24,4 +24,12 @@ public interface IProfileStore
     /// <param name="name">The name of the saved profile to look up.</param>
     /// <returns>The matching profile, or <c>null</c> when none is stored under <paramref name="name"/>.</returns>
     Profile? Find(string name);
+
+    /// <summary>
+    /// Returns every previously saved profile so they can all be offered for recall — for example to
+    /// populate the list of profiles the user can switch to when the app starts. Returns an empty list
+    /// when none has been saved.
+    /// </summary>
+    /// <returns>All stored profiles.</returns>
+    IReadOnlyList<Profile> GetAll();
 }

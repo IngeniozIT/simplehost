@@ -12,8 +12,18 @@ namespace SimpleHost.Infrastructure.Hosts;
 public sealed class HostsFileRepository(
     string filePath,
     HostsFileParser parser,
-    HostsFileSerializer serializer) : IHostsFileRepository
+    HostsFileSerializer serializer) : IHostsFileRepository, IHostsFileContentAccessor
 {
+    public string ReadContent() => File.ReadAllText(filePath);
+
+    public void ReplaceContent(string content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+
+        BackupCurrentFile();
+        File.WriteAllText(filePath, content);
+    }
+
     public void AddEntry(HostEntry entry, string? category = null)
     {
         BackupCurrentFile();

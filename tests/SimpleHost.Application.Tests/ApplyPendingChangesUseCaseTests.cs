@@ -355,6 +355,57 @@ public class ApplyPendingChangesUseCaseTests
     }
 
     [Fact]
+    public void Writes_a_pending_content_restore_by_replacing_the_whole_file()
+    {
+        var repository = new RestoringHostsFileRepository();
+        var useCase = new ApplyPendingChangesUseCase(
+            repository, new FakeElevationService(isElevated: true), new RecordingDnsCacheFlusher());
+        var changes = new PendingChangeSet();
+        changes.RestoreContent(
+            "# original\n127.0.0.1 localhost\n",
+            new[] { new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }) });
+
+        useCase.Execute(changes, flushDnsAfterSave: false);
+
+        repository.ReplacedContent.ShouldBe("# original\n127.0.0.1 localhost\n");
+    }
+
+    private sealed class RestoringHostsFileRepository : IHostsFileRepository, IHostsFileContentAccessor
+    {
+        public string? ReplacedContent { get; private set; }
+
+        public string ReadContent() => throw new NotSupportedException();
+
+        public void ReplaceContent(string content) => ReplacedContent = content;
+
+        public void AddEntry(HostEntry entry, string? category = null) => throw new NotSupportedException();
+
+        public void CreateCategory(string name) => throw new NotSupportedException();
+
+        public void RenameCategory(string currentName, string newName) => throw new NotSupportedException();
+
+        public void DeleteCategory(string name) => throw new NotSupportedException();
+
+        public void UpdateEntry(HostEntry target, HostEntry replacement) => throw new NotSupportedException();
+
+        public void MoveEntryToCategory(HostEntry entry, string? targetCategory)
+            => throw new NotSupportedException();
+
+        public void MoveEntryToCategory(HostEntry entry, string? targetCategory, int targetIndex)
+            => throw new NotSupportedException();
+
+        public void ReorderEntry(HostEntry entry, int targetIndex) => throw new NotSupportedException();
+
+        public void DeleteEntry(HostEntry entry) => throw new NotSupportedException();
+
+        public IReadOnlyList<HostEntry> GetActiveEntries() => throw new NotSupportedException();
+
+        public IReadOnlyList<HostEntry> GetEntries() => throw new NotSupportedException();
+
+        public IReadOnlyList<CategoryGroup> GetGroupedEntries() => throw new NotSupportedException();
+    }
+
+    [Fact]
     public void Skips_a_change_whose_target_can_no_longer_be_located_and_writes_the_rest()
     {
         var repository = new StalePendingChangeRepository();

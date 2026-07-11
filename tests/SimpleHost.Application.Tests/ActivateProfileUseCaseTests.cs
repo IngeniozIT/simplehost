@@ -293,6 +293,8 @@ public class ActivateProfileUseCaseTests
         }
 
         public void Save(Profile profile) => throw new NotSupportedException();
+
+        public IReadOnlyList<Profile> GetAll() => throw new NotSupportedException();
     }
 
     private sealed class RecordingHostsFileRepository(params CategoryGroup[] groups) : IHostsFileRepository

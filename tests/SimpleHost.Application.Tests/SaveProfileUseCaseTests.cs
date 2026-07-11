@@ -83,5 +83,7 @@ public class SaveProfileUseCaseTests
         public void Save(Profile profile) => Saved.Add(profile);
 
         public Profile? Find(string name) => throw new NotSupportedException();
+
+        public IReadOnlyList<Profile> GetAll() => throw new NotSupportedException();
     }
 }

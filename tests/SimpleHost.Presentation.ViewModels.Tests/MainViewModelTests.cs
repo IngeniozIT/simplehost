@@ -2138,6 +2138,87 @@ public class MainViewModelTests
         pendingChanges.HasChanges.ShouldBeTrue();
     }
 
+    [Fact]
+    public void LoadPersistedProfiles_offers_the_persisted_profiles_for_recall()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        var snapshot = Profile.FromSnapshot("Default", "127.0.0.1 localhost\n",
+            new[] { new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }) });
+        var preset = Profile.Of("Work", new[] { "Development" });
+
+        viewModel.LoadPersistedProfiles(new[] { snapshot, preset });
+
+        viewModel.Profiles.Select(profile => profile.Name).ShouldBe(new[] { "Default", "Work" });
+    }
+
+    [Fact]
+    public void LoadPersistedProfiles_replaces_whatever_the_list_held()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.LoadPersistedProfiles(new[] { Profile.Of("Old", new[] { "Development" }) });
+
+        viewModel.LoadPersistedProfiles(new[] { Profile.Of("New", new[] { "Production" }) });
+
+        viewModel.Profiles.ShouldHaveSingleItem().Name.ShouldBe("New");
+    }
+
+    [Fact]
+    public void ActivateProfile_stages_restoring_the_captured_content_for_a_snapshot_profile()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "edited.test") }),
+                new CategoryGroup("Added", new[] { new HostEntry("10.0.0.9", "new.test") }),
+            },
+        };
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        viewModel.LoadPersistedProfiles(new[]
+        {
+            Profile.FromSnapshot(
+                "Default",
+                "127.0.0.1 localhost\n",
+                new[] { new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }) }),
+        });
+
+        viewModel.ActivateProfile("Default");
+
+        pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<RestoreContentChange>();
+        viewModel.Groups.Select(group => group.Name).ShouldBe(new string?[] { null });
+        viewModel.Groups[0].Entries.Select(entry => entry.Hostname).ShouldBe(new[] { "localhost" });
+    }
+
+    [Fact]
+    public void ActivateProfile_stages_the_snapshot_restore_without_writing_to_the_file()
+    {
+        // The fake repository throws on every entry-level mutating operation, so staging a restore
+        // (rather than writing) proves the recall of a snapshot profile goes through the pending set.
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "edited.test") }),
+            },
+        };
+        var pendingChanges = new PendingChangeSet();
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        viewModel.LoadPersistedProfiles(new[]
+        {
+            Profile.FromSnapshot(
+                "Default",
+                "127.0.0.1 localhost\n",
+                new[] { new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }) }),
+        });
+
+        viewModel.ActivateProfile("Default");
+
+        pendingChanges.HasChanges.ShouldBeTrue();
+    }
+
     private static FakeHostsFileRepository SampleRepository() => new()
     {
         GroupedEntries = new[]
@@ -2221,6 +2302,8 @@ public class MainViewModelTests
         }
 
         public Profile? Find(string name) => _saved.FirstOrDefault(profile => profile.Name == name);
+
+        public IReadOnlyList<Profile> GetAll() => _saved.ToList();
     }
 
     private sealed class FakeElevationService(bool isElevated) : IElevationService

@@ -273,6 +273,8 @@ public class TrayMenuControllerTests
         }
 
         public Profile? Find(string name) => _saved.FirstOrDefault(profile => profile.Name == name);
+
+        public IReadOnlyList<Profile> GetAll() => _saved.ToList();
     }
 
     private sealed class FakeElevationService(bool isElevated) : IElevationService

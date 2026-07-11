@@ -12,6 +12,7 @@ using SimpleHost.Application.UseCases.PreviewPendingChanges;
 using SimpleHost.Application.UseCases.RefreshSubscription;
 using SimpleHost.Application.UseCases.RefreshSubscriptions;
 using SimpleHost.Application.UseCases.SaveProfile;
+using SimpleHost.Application.UseCases.SeedDefaultProfile;
 using SimpleHost.Application.UseCases.SearchEntriesByHostname;
 using SimpleHost.Application.UseCases.SearchEntriesByIpAddress;
 using SimpleHost.Application.UseCases.SubscribeToRemoteHostsList;
@@ -21,6 +22,7 @@ using SimpleHost.Application.UseCases.ViewHostnameConflicts;
 using SimpleHost.Infrastructure.Dns;
 using SimpleHost.Infrastructure.Elevation;
 using SimpleHost.Infrastructure.Hosts;
+using SimpleHost.Infrastructure.Profiles;
 using SimpleHost.Presentation.ViewModels;
 
 namespace SimpleHost.Presentation.Composition;
@@ -78,10 +80,14 @@ internal sealed class CompositionRoot : IDisposable
         var remoteFetcher = new RemoteHostsListFetcher(_httpClient, parser);
         var exporter = new HostsFileExporter(serializer);
         var importer = new HostsFileImporter(parser);
-        var profileStore = new InMemoryProfileStore();
+        var profileStore = new FileProfileStore(ProfileStorePath(), parser);
         var subscriptionCatalog = new InMemorySubscriptionCatalog();
 
-        return new MainViewModel(
+        // Capture the original file as the "Default" snapshot the first time the app ever runs, before
+        // anything is changed, so there is always a one-click way back to the genuinely original file.
+        new SeedDefaultProfileUseCase(profileStore, repository, repository).Execute();
+
+        var viewModel = new MainViewModel(
             new ViewGroupedEntriesUseCase(repository),
             new ViewHostnameConflictsUseCase(repository),
             new ViewDuplicateEntriesUseCase(repository),
@@ -99,7 +105,21 @@ internal sealed class CompositionRoot : IDisposable
             new ExportConfigurationUseCase(repository, exporter),
             new ImportHostsFileUseCase(importer, repository),
             new PendingChangeSet());
+
+        viewModel.LoadPersistedProfiles(profileStore.GetAll());
+        return viewModel;
     }
+
+    /// <summary>
+    /// The path of the JSON file the persistent profile store keeps profiles in: a
+    /// <c>profiles.json</c> under a per-user <c>SimpleHost</c> folder in local application data, so the
+    /// "Default" snapshot and any saved presets survive a restart without touching the system file.
+    /// </summary>
+    private static string ProfileStorePath()
+        => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "SimpleHost",
+            "profiles.json");
 
     public void Dispose() => _httpClient.Dispose();
 }

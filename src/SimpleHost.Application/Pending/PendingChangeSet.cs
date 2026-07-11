@@ -97,6 +97,24 @@ public sealed class PendingChangeSet
         => Record(new ReorderEntryChange(entry, targetIndex));
 
     /// <summary>
+    /// Records restoring the whole <c>hosts</c> file to a captured snapshot: <paramref name="content"/>
+    /// is the raw file content to write back verbatim, and <paramref name="restoredGroups"/> is that
+    /// content grouped by category for the projection, so the displayed list and preview show the
+    /// restored state. Nothing is written until the pending changes are applied.
+    /// </summary>
+    /// <param name="content">The raw file content to restore.</param>
+    /// <param name="restoredGroups">The restored content grouped by category, in file order.</param>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="content"/> or <paramref name="restoredGroups"/> is <c>null</c>.
+    /// </exception>
+    public void RestoreContent(string content, IReadOnlyList<CategoryGroup> restoredGroups)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(restoredGroups);
+        Record(new RestoreContentChange(content, restoredGroups));
+    }
+
+    /// <summary>
     /// Discards every accumulated change, leaving the set empty and <see cref="HasChanges"/>
     /// <see langword="false"/> again. Used once the changes have been written to the file so they
     /// are no longer pending.

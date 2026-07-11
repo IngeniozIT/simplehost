@@ -314,6 +314,8 @@ public class MainViewModelImportExportTests
 
         public Domain.Profiles.Profile? Find(string name)
             => _saved.FirstOrDefault(profile => profile.Name == name);
+
+        public IReadOnlyList<Domain.Profiles.Profile> GetAll() => _saved.ToList();
     }
 
     private sealed class FakeElevationService(bool isElevated) : IElevationService

@@ -87,9 +87,13 @@
                 <MenuItem Header="_Export Category..." Click="OnExportCategoryClick" />
                 <MenuItem Header="Export _All..." Click="OnExportConfigurationClick" />
             </MenuItem>
-            <MenuItem Header="_Profiles">
+            <!-- Below the static Save entry and separator, one item per saved profile is generated in
+                 code-behind from MainViewModel.Profiles (kept in sync via its CollectionChanged), so a
+                 profile is activated in a single click straight from this menu. A disabled placeholder
+                 is shown while no profile is saved. -->
+            <MenuItem x:Name="ProfilesMenu" Header="_Profiles">
                 <MenuItem Header="_Save Current Setup as Profile..." Click="OnOpenProfilesClick" />
-                <MenuItem Header="S_witch to a Saved Profile..." Click="OnOpenProfilesClick" />
+                <Separator />
             </MenuItem>
             <MenuItem Header="_Subscriptions">
                 <MenuItem Header="_Manage Subscriptions..." Click="OnOpenSubscriptionsClick" />

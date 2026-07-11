@@ -73,6 +73,12 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         // callbacks; surface each as a modal warning so the user learns why nothing happened.
         _viewModel.SubscriptionOperationFailed = ReportOperationFailure;
         _viewModel.ImportExportFailed = ReportOperationFailure;
+
+        // The Profiles menu lists one item per saved profile beneath its static Save entry. Keep it in
+        // step with the view-model's profile set — populated by LoadPersistedProfiles and grown by
+        // SaveProfile — by rebuilding whenever that collection changes, and once now for the initial set.
+        _viewModel.Profiles.CollectionChanged += OnProfilesChanged;
+        RebuildProfilesMenu();
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -488,6 +494,54 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         // The Profiles menu opens a modal dialog bound to the same view-model, so saving the current
         // setup or switching to a saved profile stages exactly the pending changes it did as a tab.
         => new ProfilesWindow(_viewModel) { Owner = this }.ShowDialog();
+
+    // Marks the profile items this window generates into the Profiles menu, so a rebuild can remove
+    // exactly those (leaving the static Save entry and separator authored in XAML untouched).
+    private static readonly object ProfileMenuItemMarker = new();
+
+    private void OnProfilesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        => RebuildProfilesMenu();
+
+    private void RebuildProfilesMenu()
+    {
+        // Drop the previously generated items (marked ones) and regenerate from the current profile set,
+        // so the menu always reflects MainViewModel.Profiles. The static Save entry and the separator
+        // above the generated list are authored in XAML and left in place.
+        for (var index = ProfilesMenu.Items.Count - 1; index >= 0; index--)
+        {
+            if (ProfilesMenu.Items[index] is FrameworkElement { Tag: { } tag }
+                && ReferenceEquals(tag, ProfileMenuItemMarker))
+            {
+                ProfilesMenu.Items.RemoveAt(index);
+            }
+        }
+
+        if (_viewModel.Profiles.Count == 0)
+        {
+            // No profile saved yet: show a disabled placeholder rather than leaving the section empty.
+            ProfilesMenu.Items.Add(new System.Windows.Controls.MenuItem
+            {
+                Header = "No saved profiles",
+                IsEnabled = false,
+                Tag = ProfileMenuItemMarker,
+            });
+            return;
+        }
+
+        foreach (var profile in _viewModel.Profiles)
+        {
+            // Capture the name so each item activates its own profile through the normal pending-changes
+            // flow (ActivateProfile), staging exactly what switching to it in the dialog would.
+            var name = profile.Name;
+            var item = new System.Windows.Controls.MenuItem
+            {
+                Header = $"Use profile {name}",
+                Tag = ProfileMenuItemMarker,
+            };
+            item.Click += (_, _) => _viewModel.ActivateProfile(name);
+            ProfilesMenu.Items.Add(item);
+        }
+    }
 
     private void OnOpenSubscriptionsClick(object sender, RoutedEventArgs e)
         // The Subscriptions menu opens a modal dialog bound to the same view-model, so subscribing to

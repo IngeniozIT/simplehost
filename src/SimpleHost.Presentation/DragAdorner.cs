@@ -6,6 +6,16 @@ using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 
+// This project enables WinForms interop (for the tray icon), whose implicit usings bring
+// System.Drawing into scope — making the unqualified Point, Size and Brush below ambiguous with
+// System.Drawing's same-named types. Pin them to their WPF counterparts, which is what this
+// adorner uses throughout.
+using Point = System.Windows.Point;
+using Size = System.Windows.Size;
+using Brush = System.Windows.Media.Brush;
+using Image = System.Windows.Controls.Image;
+using Color = System.Windows.Media.Color;
+
 namespace SimpleHost.Presentation;
 
 /// <summary>

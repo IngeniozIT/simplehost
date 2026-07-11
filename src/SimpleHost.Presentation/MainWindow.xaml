@@ -203,7 +203,9 @@
                           Drop="OnEntriesDrop"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
-                <StackPanel>
+                <!-- Right margin reserves a clear gap so the rightmost row controls
+                     (the per-row Delete button) never sit under the vertical scroll bar. -->
+                <StackPanel Margin="0,0,16,0">
                 <ItemsControl ItemsSource="{Binding VisibleGroups}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>

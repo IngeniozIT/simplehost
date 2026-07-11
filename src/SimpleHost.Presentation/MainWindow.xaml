@@ -34,6 +34,26 @@
                     <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
                     <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
                 </Trigger>
+                <!-- A rejected inline value: a red outline flags the offending field in place. Placed
+                     last so it wins over the hover/focus stroke while the error stands. -->
+                <Trigger Property="local:InlineEditError.HasError" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- The validation reason shown directly beneath an inline field whose value was rejected;
+             collapsed (taking no row height) whenever the field is valid and the message is empty. -->
+        <Style x:Key="InlineEditErrorText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Margin" Value="4,1,0,0" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Visibility" Value="Visible" />
+            <Style.Triggers>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </Trigger>
             </Style.Triggers>
         </Style>
     </ui:FluentWindow.Resources>
@@ -285,16 +305,19 @@
                                                                      IsChecked="{Binding IsActive, Mode=OneWay}"
                                                                      Click="OnRowToggle" />
 
-                                                    <TextBox Grid.Column="2"
-                                                             x:Name="IpBox"
-                                                             Style="{StaticResource InlineEditTextBox}"
-                                                             Text="{Binding IpAddress, Mode=OneWay}"
-                                                             Tag="IpAddress"
-                                                             ToolTip="Click to edit the IP address"
-                                                             FontFamily="Consolas"
-                                                             VerticalAlignment="Center"
-                                                             KeyDown="OnInlineEditKeyDown"
-                                                             LostKeyboardFocus="OnInlineEditLostFocus" />
+                                                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                        <TextBox x:Name="IpBox"
+                                                                 Style="{StaticResource InlineEditTextBox}"
+                                                                 Text="{Binding IpAddress, Mode=OneWay}"
+                                                                 Tag="IpAddress"
+                                                                 ToolTip="Click to edit the IP address"
+                                                                 FontFamily="Consolas"
+                                                                 KeyDown="OnInlineEditKeyDown"
+                                                                 TextChanged="OnInlineEditTextChanged"
+                                                                 LostKeyboardFocus="OnInlineEditLostFocus" />
+                                                        <TextBlock Style="{StaticResource InlineEditErrorText}"
+                                                                   Text="{Binding Path=(local:InlineEditError.Message), ElementName=IpBox}" />
+                                                    </StackPanel>
 
                                                     <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="0,0,12,0">
                                                         <TextBox x:Name="Host"
@@ -303,7 +326,10 @@
                                                                  Tag="Hostname"
                                                                  ToolTip="Click to edit the hostname"
                                                                  KeyDown="OnInlineEditKeyDown"
+                                                                 TextChanged="OnInlineEditTextChanged"
                                                                  LostKeyboardFocus="OnInlineEditLostFocus" />
+                                                        <TextBlock Style="{StaticResource InlineEditErrorText}"
+                                                                   Text="{Binding Path=(local:InlineEditError.Message), ElementName=Host}" />
                                                         <Grid>
                                                             <!-- Placeholder shown only while hovering an entry that has no description yet,
                                                                  so a description can be added in place without cluttering calm rows. -->

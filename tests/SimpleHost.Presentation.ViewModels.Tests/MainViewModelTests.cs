@@ -495,9 +495,10 @@ public class MainViewModelTests
         viewModel.Load();
         var entry = viewModel.Groups[0].Entries[0];
 
-        var accepted = viewModel.EditEntryField(entry, HostEntryField.IpAddress, "127.0.0.2");
+        var result = viewModel.EditEntryField(entry, HostEntryField.IpAddress, "127.0.0.2");
 
-        accepted.ShouldBeTrue();
+        result.IsAccepted.ShouldBeTrue();
+        result.ErrorMessage.ShouldBeEmpty();
         var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>();
         change.Target.ShouldBe(new HostEntry("127.0.0.1", "api.test", "note"));
         change.Replacement.ShouldBe(new HostEntry("127.0.0.2", "api.test", "note"));
@@ -521,9 +522,10 @@ public class MainViewModelTests
         viewModel.Load();
         var entry = viewModel.Groups[0].Entries[0];
 
-        var accepted = viewModel.EditEntryField(entry, HostEntryField.Hostname, "still-blocked.test");
+        var result = viewModel.EditEntryField(entry, HostEntryField.Hostname, "still-blocked.test");
 
-        accepted.ShouldBeTrue();
+        result.IsAccepted.ShouldBeTrue();
+        result.ErrorMessage.ShouldBeEmpty();
         var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>();
         change.Replacement.ShouldBe(
             new HostEntry("0.0.0.0", "still-blocked.test", "ad", HostEntryStatus.Disabled));
@@ -544,9 +546,10 @@ public class MainViewModelTests
         viewModel.Load();
         var entry = viewModel.Groups[0].Entries[0];
 
-        var accepted = viewModel.EditEntryField(entry, HostEntryField.Comment, "new");
+        var result = viewModel.EditEntryField(entry, HostEntryField.Comment, "new");
 
-        accepted.ShouldBeTrue();
+        result.IsAccepted.ShouldBeTrue();
+        result.ErrorMessage.ShouldBeEmpty();
         pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>()
             .Replacement.ShouldBe(new HostEntry("127.0.0.1", "api.test", "new"));
     }
@@ -566,9 +569,10 @@ public class MainViewModelTests
         viewModel.Load();
         var entry = viewModel.Groups[0].Entries[0];
 
-        var accepted = viewModel.EditEntryField(entry, HostEntryField.Comment, "   ");
+        var result = viewModel.EditEntryField(entry, HostEntryField.Comment, "   ");
 
-        accepted.ShouldBeTrue();
+        result.IsAccepted.ShouldBeTrue();
+        result.ErrorMessage.ShouldBeEmpty();
         pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>()
             .Replacement.ShouldBe(new HostEntry("127.0.0.1", "api.test", null));
     }
@@ -588,9 +592,10 @@ public class MainViewModelTests
         viewModel.Load();
         var entry = viewModel.Groups[0].Entries[0];
 
-        var accepted = viewModel.EditEntryField(entry, HostEntryField.IpAddress, "not-an-ip");
+        var result = viewModel.EditEntryField(entry, HostEntryField.IpAddress, "not-an-ip");
 
-        accepted.ShouldBeFalse();
+        result.IsAccepted.ShouldBeFalse();
+        result.ErrorMessage.ShouldBe("'not-an-ip' is not a valid IP address.");
         pendingChanges.HasChanges.ShouldBeFalse();
     }
 
@@ -609,9 +614,10 @@ public class MainViewModelTests
         viewModel.Load();
         var entry = viewModel.Groups[0].Entries[0];
 
-        var accepted = viewModel.EditEntryField(entry, HostEntryField.Hostname, "not a hostname");
+        var result = viewModel.EditEntryField(entry, HostEntryField.Hostname, "not a hostname");
 
-        accepted.ShouldBeFalse();
+        result.IsAccepted.ShouldBeFalse();
+        result.ErrorMessage.ShouldBe("'not a hostname' is not a valid hostname.");
         pendingChanges.HasChanges.ShouldBeFalse();
     }
 
@@ -630,10 +636,41 @@ public class MainViewModelTests
         viewModel.Load();
         var entry = viewModel.Groups[0].Entries[0];
 
-        var accepted = viewModel.EditEntryField(entry, HostEntryField.Hostname, "api.test");
+        var result = viewModel.EditEntryField(entry, HostEntryField.Hostname, "api.test");
 
-        accepted.ShouldBeTrue();
+        result.IsAccepted.ShouldBeTrue();
+        result.ErrorMessage.ShouldBeEmpty();
         pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ValidateFieldValue_accepts_a_well_formed_ip_address_with_no_message()
+        => MainViewModel.ValidateFieldValue(HostEntryField.IpAddress, "10.0.0.1").ShouldBeEmpty();
+
+    [Fact]
+    public void ValidateFieldValue_reports_the_reason_an_ip_address_is_invalid()
+        => MainViewModel.ValidateFieldValue(HostEntryField.IpAddress, "not-an-ip")
+            .ShouldBe("'not-an-ip' is not a valid IP address.");
+
+    [Fact]
+    public void ValidateFieldValue_reports_the_prompt_when_the_ip_address_is_blank()
+        => MainViewModel.ValidateFieldValue(HostEntryField.IpAddress, "   ")
+            .ShouldBe("Enter an IP address.");
+
+    [Fact]
+    public void ValidateFieldValue_accepts_a_well_formed_hostname_with_no_message()
+        => MainViewModel.ValidateFieldValue(HostEntryField.Hostname, "api.test").ShouldBeEmpty();
+
+    [Fact]
+    public void ValidateFieldValue_reports_the_reason_a_hostname_is_invalid()
+        => MainViewModel.ValidateFieldValue(HostEntryField.Hostname, "not a hostname")
+            .ShouldBe("'not a hostname' is not a valid hostname.");
+
+    [Fact]
+    public void ValidateFieldValue_never_reports_an_error_for_the_comment_field()
+    {
+        MainViewModel.ValidateFieldValue(HostEntryField.Comment, "anything at all !!!").ShouldBeEmpty();
+        MainViewModel.ValidateFieldValue(HostEntryField.Comment, null).ShouldBeEmpty();
     }
 
     [Fact]

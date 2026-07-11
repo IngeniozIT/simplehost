@@ -24,6 +24,7 @@ using SimpleHost.Domain.Categories;
 using SimpleHost.Domain.Entries;
 using SimpleHost.Domain.Preview;
 using SimpleHost.Domain.Profiles;
+using SimpleHost.Domain.Validation;
 using SimpleHost.Presentation.ViewModels.DeepLinks;
 
 namespace SimpleHost.Presentation.ViewModels;
@@ -729,17 +730,41 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Validates a single field's candidate <paramref name="value"/> exactly as inline and form
+    /// editing validate it (<see cref="EntryFormViewModel"/> and the domain value objects), returning
+    /// an empty string when the value is acceptable and, when it is not, the human-readable reason it
+    /// is rejected. Only the IP address and hostname are validated; the comment/description field has
+    /// no validation and is always acceptable.
+    /// </summary>
+    public static string ValidateFieldValue(HostEntryField field, string? value)
+        => field switch
+        {
+            HostEntryField.IpAddress =>
+                IpAddressValidation.Of(value) is { IsWellFormed: false } ip ? ip.Message : string.Empty,
+            HostEntryField.Hostname =>
+                HostnameValidation.Of(value) is { IsWellFormed: false } host ? host.Message : string.Empty,
+            _ => string.Empty,
+        };
+
+    /// <summary>
     /// Stages an inline, in-row edit of a single field of <paramref name="entry"/> — its IP address,
     /// hostname or description — validated exactly as the edit form validates it
     /// (<see cref="EntryFormViewModel"/>): an ill-formed IP address or hostname is rejected and stages
     /// nothing. A committed change is staged through the same <see cref="EditEntry"/> path, keeping the
     /// entry's category and active-or-disabled status; a value that leaves the field unchanged stages
-    /// nothing. Returns <c>true</c> when the new value is accepted (whether it staged a change or was an
-    /// unchanged no-op) and <c>false</c> when it is rejected as invalid, so the view can restore the
-    /// displayed value. Nothing is written to the file until the pending changes are applied.
+    /// nothing. Returns an accepted result when the new value is valid (whether it staged a change or
+    /// was an unchanged no-op) and a rejected result carrying the validation-failure reason when it is
+    /// invalid, so the view can flag the offending field in place. Nothing is written to the file
+    /// until the pending changes are applied.
     /// </summary>
-    public bool EditEntryField(HostEntryViewModel entry, HostEntryField field, string? value)
+    public InlineFieldEditResult EditEntryField(HostEntryViewModel entry, HostEntryField field, string? value)
     {
+        var error = ValidateFieldValue(field, value);
+        if (error.Length > 0)
+        {
+            return InlineFieldEditResult.Rejected(error);
+        }
+
         var draft = new EntryFormViewModel
         {
             IpAddress = entry.IpAddress,
@@ -760,18 +785,13 @@ public sealed class MainViewModel : ViewModelBase
                 break;
         }
 
-        if (!draft.IsValid)
-        {
-            return false;
-        }
-
         EditEntry(
             entry,
             draft.IpAddress,
             draft.Hostname,
             NullIfBlank(draft.Comment),
             CurrentCategoryOf(entry));
-        return true;
+        return InlineFieldEditResult.Accepted;
     }
 
     /// <summary>

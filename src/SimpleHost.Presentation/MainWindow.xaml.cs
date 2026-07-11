@@ -263,10 +263,16 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         _suppressInlineCommit = true;
         try
         {
-            if (!_viewModel.EditEntryField(entry, FieldOf(box), box.Text))
+            var result = _viewModel.EditEntryField(entry, FieldOf(box), box.Text);
+            if (result.IsAccepted)
             {
-                // Rejected as invalid: nothing was staged, so put the last good value back.
-                RevertInlineEdit(box);
+                ClearInlineError(box);
+            }
+            else
+            {
+                // Rejected as invalid: keep the offending text visible and flag the field in place with
+                // a red outline and the reason beneath it, instead of silently restoring the old value.
+                ShowInlineError(box, result.ErrorMessage);
             }
         }
         finally
@@ -275,11 +281,38 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
+    private void OnInlineEditTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        // While a rejected field is flagged, re-check the value as it is typed and clear the error the
+        // moment it becomes valid again, so the red outline and message disappear as soon as it is fixed.
+        if (sender is System.Windows.Controls.TextBox box
+            && InlineEditError.GetHasError(box)
+            && MainViewModel.ValidateFieldValue(FieldOf(box), box.Text).Length == 0)
+        {
+            ClearInlineError(box);
+        }
+    }
+
     private static void RevertInlineEdit(System.Windows.Controls.TextBox box)
-        // Re-pull the entry's current value from the (one-way) binding source rather than assigning
-        // Text directly, which would clear the binding. This restores the last committed value after an
-        // Escape or a rejected edit.
-        => box.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateTarget();
+    {
+        // Abandoning the edit (Escape) clears any error flag and re-pulls the entry's current value from
+        // the (one-way) binding source rather than assigning Text directly, which would clear the
+        // binding. This restores the last committed value and a calm, unflagged field.
+        ClearInlineError(box);
+        box.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateTarget();
+    }
+
+    private static void ShowInlineError(System.Windows.Controls.TextBox box, string message)
+    {
+        InlineEditError.SetMessage(box, message);
+        InlineEditError.SetHasError(box, true);
+    }
+
+    private static void ClearInlineError(System.Windows.Controls.TextBox box)
+    {
+        InlineEditError.SetMessage(box, string.Empty);
+        InlineEditError.SetHasError(box, false);
+    }
 
     private static HostEntryField FieldOf(System.Windows.Controls.TextBox box)
         => box.Tag switch

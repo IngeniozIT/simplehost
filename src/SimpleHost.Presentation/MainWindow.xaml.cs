@@ -211,22 +211,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
-    private void OnEditEntryClick(object sender, RoutedEventArgs e)
-    {
-        if (EntryOf(sender) is not { } entry)
-        {
-            return;
-        }
-
-        _viewModel.BeginEditEntry(entry);
-
-        var dialog = new EntryEditWindow(_viewModel.EditDraft) { Owner = this };
-        if (dialog.ShowDialog() == true)
-        {
-            _viewModel.SaveEditedEntry();
-        }
-    }
-
     private void OnDeleteEntryClick(object sender, RoutedEventArgs e)
     {
         if (EntryOf(sender) is { } entry)
@@ -348,20 +332,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         else
         {
             _viewModel.EnableEntry(entry);
-        }
-    }
-
-    private void OnMoveEntryClick(object sender, RoutedEventArgs e)
-    {
-        if (EntryOf(sender) is not { } entry)
-        {
-            return;
-        }
-
-        var picker = new CategoryPickerWindow(_viewModel.Groups) { Owner = this };
-        if (picker.ShowDialog() == true)
-        {
-            _viewModel.MoveEntry(entry, picker.ChosenCategory);
         }
     }
 

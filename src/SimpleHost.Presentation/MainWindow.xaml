@@ -306,16 +306,17 @@
                                                                 </Grid>
                                                             </StackPanel>
 
-                                                            <!-- Per-entry actions, revealed on hover to keep the row calm. -->
-                                                            <StackPanel x:Name="RowActions"
-                                                                        Grid.Column="4"
-                                                                        Orientation="Horizontal"
-                                                                        VerticalAlignment="Center"
-                                                                        Opacity="0">
-                                                                <Button Content="Edit" Click="OnEditEntryClick" />
-                                                                <Button Content="Move" Margin="6,0,0,0" Click="OnMoveEntryClick" />
-                                                                <Button Content="Delete" Margin="6,0,0,0" Click="OnDeleteEntryClick" />
-                                                            </StackPanel>
+                                                            <!-- Always-available per-row delete: a single click stages this entry's
+                                                                 removal through the confirmed MainViewModel.DeleteEntry path, so the
+                                                                 pending deletion shows up in the list like any other change. Editing is
+                                                                 done inline in the fields above and moving is done by dragging the row,
+                                                                 so those hover buttons are gone; only delete needs its own control. -->
+                                                            <ui:Button Grid.Column="4"
+                                                                       VerticalAlignment="Center"
+                                                                       Appearance="Subtle"
+                                                                       Icon="{ui:SymbolIcon Delete24}"
+                                                                       ToolTip="Delete this entry"
+                                                                       Click="OnDeleteEntryClick" />
                                                         </Grid>
                                                     </Border>
 
@@ -325,9 +326,8 @@
                                                             <Setter TargetName="Row" Property="Opacity" Value="0.55" />
                                                             <Setter TargetName="Host" Property="TextDecorations" Value="Strikethrough" />
                                                         </DataTrigger>
-                                                        <!-- Reveal the row actions and highlight the row on hover. -->
+                                                        <!-- Highlight the row on hover. -->
                                                         <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="RowActions" Property="Opacity" Value="1" />
                                                             <Setter TargetName="Row" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
                                                         </Trigger>
                                                     </DataTemplate.Triggers>

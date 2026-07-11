@@ -59,6 +59,16 @@ public sealed class FileProfileStore : IProfileStore
 
     public IReadOnlyList<Profile> GetAll() => _profiles.ToList();
 
+    public void Remove(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        if (_profiles.RemoveAll(existing => existing.Name == name) > 0)
+        {
+            Persist();
+        }
+    }
+
     private List<Profile> Load()
     {
         if (!File.Exists(_filePath))

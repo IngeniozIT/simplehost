@@ -32,4 +32,12 @@ public interface IProfileStore
     /// </summary>
     /// <returns>All stored profiles.</returns>
     IReadOnlyList<Profile> GetAll();
+
+    /// <summary>
+    /// Removes the profile stored under <paramref name="name"/> so it is no longer listed or recalled,
+    /// matching the name exactly (case-sensitively) as everywhere else in the domain. A name that
+    /// matches no stored profile removes nothing, leaving the store unchanged.
+    /// </summary>
+    /// <param name="name">The name of the saved profile to remove.</param>
+    void Remove(string name);
 }

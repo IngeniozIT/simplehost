@@ -13,6 +13,8 @@ using SimpleHost.Application.UseCases.ImportHostsFile;
 using SimpleHost.Application.UseCases.PreviewPendingChanges;
 using SimpleHost.Application.UseCases.RefreshSubscription;
 using SimpleHost.Application.UseCases.RefreshSubscriptions;
+using SimpleHost.Application.UseCases.RemoveProfile;
+using SimpleHost.Application.UseCases.RenameProfile;
 using SimpleHost.Application.UseCases.SaveProfile;
 using SimpleHost.Application.UseCases.SearchEntriesByHostname;
 using SimpleHost.Application.UseCases.SearchEntriesByIpAddress;
@@ -45,6 +47,8 @@ public sealed class MainViewModel : ViewModelBase
     private readonly ApplyPendingChangesUseCase _applyPendingChanges;
     private readonly DiscardPendingChangesUseCase _discardPendingChanges;
     private readonly SaveProfileUseCase _saveProfile;
+    private readonly RenameProfileUseCase _renameProfile;
+    private readonly RemoveProfileUseCase _removeProfile;
     private readonly SubscribeToRemoteHostsListUseCase _subscribeToRemoteList;
     private readonly RefreshSubscriptionUseCase _refreshSubscription;
     private readonly RefreshSubscriptionsUseCase _refreshSubscriptions;
@@ -77,6 +81,8 @@ public sealed class MainViewModel : ViewModelBase
         SearchEntriesByIpAddressUseCase searchByIpAddress,
         FilterEntriesByCategoryUseCase filterByCategory,
         SaveProfileUseCase saveProfile,
+        RenameProfileUseCase renameProfile,
+        RemoveProfileUseCase removeProfile,
         SubscribeToRemoteHostsListUseCase subscribeToRemoteList,
         RefreshSubscriptionUseCase refreshSubscription,
         RefreshSubscriptionsUseCase refreshSubscriptions,
@@ -99,6 +105,8 @@ public sealed class MainViewModel : ViewModelBase
         _ = searchByIpAddress;
         _ = filterByCategory;
         _saveProfile = saveProfile;
+        _renameProfile = renameProfile;
+        _removeProfile = removeProfile;
         _subscribeToRemoteList = subscribeToRemoteList;
         _refreshSubscription = refreshSubscription;
         _refreshSubscriptions = refreshSubscriptions;
@@ -962,6 +970,95 @@ public sealed class MainViewModel : ViewModelBase
             StageCategoryStatusChange(category, status);
         }
     }
+
+    /// <summary>
+    /// Renames the saved profile currently named <paramref name="currentName"/> to
+    /// <paramref name="newName"/>, persisting the change through the rename-profile use case and
+    /// updating the listed profile in place so it keeps its position in <see cref="Profiles"/>. The
+    /// renamed profile keeps everything else it records, so recalling it through
+    /// <see cref="ActivateProfile"/> still applies or restores exactly what it did before. A blank new
+    /// name does nothing, and a <paramref name="currentName"/> that matches no listed profile does
+    /// nothing, in both cases leaving the list and persistence untouched.
+    /// </summary>
+    public void RenameProfile(string currentName, string newName)
+    {
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            return;
+        }
+
+        var index = IndexOfProfile(currentName);
+        if (index < 0)
+        {
+            return;
+        }
+
+        Profiles[index] = _renameProfile.Execute(currentName, newName)!;
+    }
+
+    /// <summary>
+    /// Removes the saved profile named <paramref name="name"/> from both <see cref="Profiles"/> and
+    /// persistence through the remove-profile use case, so it survives a restart gone. A name that
+    /// matches no listed profile does nothing. A snapshot profile — the revert-to-original safety net,
+    /// such as the built-in "Default" — is protected and never removed, so the one-click way back to
+    /// the original file is preserved.
+    /// </summary>
+    public void RemoveProfile(string name)
+    {
+        var index = IndexOfProfile(name);
+        if (index < 0)
+        {
+            return;
+        }
+
+        if (Profiles[index].RestoresSnapshot)
+        {
+            return;
+        }
+
+        _removeProfile.Execute(name);
+        Profiles.RemoveAt(index);
+    }
+
+    /// <summary>
+    /// Describes what recalling the saved profile named <paramref name="name"/> would do, so the user
+    /// can preview it before switching: a category preset lists the categories it would enable (with
+    /// every other one disabled), while a snapshot profile reports that it restores the whole captured
+    /// file and lists the categories that file holds. Category names are shown for display, with the
+    /// "No category" group named <see cref="CategoryGroupViewModel.NoCategoryDisplayName"/>. Returns
+    /// <see langword="null"/> when no listed profile has that name.
+    /// </summary>
+    public ProfilePreview? PreviewProfile(string name)
+    {
+        var index = IndexOfProfile(name);
+        if (index < 0)
+        {
+            return null;
+        }
+
+        var profile = Profiles[index];
+        var categories = profile.RestoresSnapshot
+            ? profile.SnapshotGroups!.Select(group => DisplayCategory(group.Name)).ToList()
+            : profile.EnabledCategories.Select(DisplayCategory).ToList();
+
+        return new ProfilePreview(profile.Name, profile.RestoresSnapshot, categories);
+    }
+
+    private int IndexOfProfile(string name)
+    {
+        for (var index = 0; index < Profiles.Count; index++)
+        {
+            if (string.Equals(Profiles[index].Name, name, StringComparison.Ordinal))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static string DisplayCategory(string? category)
+        => category ?? CategoryGroupViewModel.NoCategoryDisplayName;
 
     /// <summary>
     /// Subscribes to the remote <c>hosts</c> list at <paramref name="url"/>, placing its entries into

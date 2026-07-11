@@ -139,6 +139,25 @@ public sealed record Profile
             name.Trim(), Array.Empty<string?>(), snapshot, snapshotGroups.ToList());
     }
 
+    /// <summary>
+    /// Returns a copy of this profile saved under <paramref name="newName"/> — trimmed of surrounding
+    /// whitespace — keeping everything else it records unchanged, so recalling the renamed profile
+    /// applies or restores exactly what it did before. A category preset keeps its enabled categories
+    /// (in order) and a snapshot keeps the captured content and its grouping; only the name changes.
+    /// </summary>
+    /// <param name="newName">
+    /// The name to save the profile under instead. Surrounding whitespace is trimmed off; the name
+    /// must not be empty or whitespace only, since a profile has to be named to be recalled.
+    /// </param>
+    /// <returns>A profile identical to this one but named <paramref name="newName"/> (trimmed).</returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="newName"/> is <c>null</c>, empty, or whitespace only.
+    /// </exception>
+    public Profile Renamed(string newName)
+        => RestoresSnapshot
+            ? FromSnapshot(newName, Snapshot!, SnapshotGroups!)
+            : Of(newName, EnabledCategories);
+
     private static bool SameCategory(string? left, string? right)
         => string.Equals(left, right, StringComparison.Ordinal);
 }

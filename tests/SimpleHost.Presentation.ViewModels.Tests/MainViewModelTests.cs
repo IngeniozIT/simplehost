@@ -13,6 +13,8 @@ using SimpleHost.Application.UseCases.ImportHostsFile;
 using SimpleHost.Application.UseCases.PreviewPendingChanges;
 using SimpleHost.Application.UseCases.RefreshSubscription;
 using SimpleHost.Application.UseCases.RefreshSubscriptions;
+using SimpleHost.Application.UseCases.RemoveProfile;
+using SimpleHost.Application.UseCases.RenameProfile;
 using SimpleHost.Application.UseCases.SaveProfile;
 using SimpleHost.Application.UseCases.SearchEntriesByHostname;
 using SimpleHost.Application.UseCases.SearchEntriesByIpAddress;
@@ -2173,6 +2175,197 @@ public class MainViewModelTests
         pendingChanges.HasChanges.ShouldBeTrue();
     }
 
+    [Fact]
+    public void RenameProfile_renames_the_listed_profile_keeping_its_position()
+    {
+        var store = SeededStore(
+            Profile.Of("Work", new[] { "Development" }),
+            Profile.Of("Home", new[] { "Personal" }),
+            Profile.Of("Away", new[] { "Production" }));
+        var viewModel = BuildViewModel(SampleRepository(), profileStore: store);
+        viewModel.LoadPersistedProfiles(store.GetAll());
+
+        viewModel.RenameProfile("Home", "House");
+
+        viewModel.Profiles.Select(profile => profile.Name).ShouldBe(new[] { "Work", "House", "Away" });
+        viewModel.Profiles[1].EnabledCategories.ShouldBe(new[] { "Personal" });
+    }
+
+    [Fact]
+    public void RenameProfile_persists_the_rename_so_it_survives_a_restart()
+    {
+        var store = SeededStore(Profile.Of("Work", new[] { "Development" }));
+        var viewModel = BuildViewModel(SampleRepository(), profileStore: store);
+        viewModel.LoadPersistedProfiles(store.GetAll());
+
+        viewModel.RenameProfile("Work", "  Office  ");
+
+        store.Find("Work").ShouldBeNull();
+        store.Find("Office").ShouldNotBeNull().EnabledCategories.ShouldBe(new[] { "Development" });
+    }
+
+    [Fact]
+    public void RenameProfile_keeps_activation_working_for_the_renamed_profile()
+    {
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }),
+                new CategoryGroup("Development", new[] { new HostEntry("10.0.0.1", "api.test") }),
+            },
+        };
+        var pendingChanges = new PendingChangeSet();
+        var store = SeededStore(Profile.Of("Work", new[] { "Development" }));
+        var viewModel = BuildViewModel(repository, pendingChanges, store);
+        viewModel.Load();
+        viewModel.LoadPersistedProfiles(store.GetAll());
+
+        viewModel.RenameProfile("Work", "Office");
+        viewModel.ActivateProfile("Office");
+
+        // The renamed profile still enables only Development, so activating it leaves Development
+        // active (no change) and stages disabling the "No category" group.
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>();
+        change.Replacement.ShouldBe(new HostEntry("127.0.0.1", "localhost", null, HostEntryStatus.Disabled));
+    }
+
+    [Fact]
+    public void RenameProfile_does_nothing_for_a_blank_new_name()
+    {
+        var store = SeededStore(Profile.Of("Work", new[] { "Development" }));
+        var viewModel = BuildViewModel(SampleRepository(), profileStore: store);
+        viewModel.LoadPersistedProfiles(store.GetAll());
+
+        viewModel.RenameProfile("Work", "   ");
+
+        viewModel.Profiles.ShouldHaveSingleItem().Name.ShouldBe("Work");
+        store.Find("Work").ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void RenameProfile_does_nothing_when_no_listed_profile_has_the_current_name()
+    {
+        var store = SeededStore(Profile.Of("Work", new[] { "Development" }));
+        var viewModel = BuildViewModel(SampleRepository(), profileStore: store);
+        viewModel.LoadPersistedProfiles(store.GetAll());
+
+        viewModel.RenameProfile("Missing", "Office");
+
+        viewModel.Profiles.ShouldHaveSingleItem().Name.ShouldBe("Work");
+        store.Find("Office").ShouldBeNull();
+    }
+
+    [Fact]
+    public void RemoveProfile_removes_the_listed_profile_and_persists_the_removal()
+    {
+        var store = SeededStore(
+            Profile.Of("Work", new[] { "Development" }),
+            Profile.Of("Home", new[] { "Personal" }));
+        var viewModel = BuildViewModel(SampleRepository(), profileStore: store);
+        viewModel.LoadPersistedProfiles(store.GetAll());
+
+        viewModel.RemoveProfile("Work");
+
+        viewModel.Profiles.Select(profile => profile.Name).ShouldBe(new[] { "Home" });
+        store.Find("Work").ShouldBeNull();
+    }
+
+    [Fact]
+    public void RemoveProfile_does_nothing_for_an_unknown_name()
+    {
+        var store = SeededStore(Profile.Of("Work", new[] { "Development" }));
+        var viewModel = BuildViewModel(SampleRepository(), profileStore: store);
+        viewModel.LoadPersistedProfiles(store.GetAll());
+
+        viewModel.RemoveProfile("Missing");
+
+        viewModel.Profiles.ShouldHaveSingleItem().Name.ShouldBe("Work");
+        store.Find("Work").ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void RemoveProfile_protects_a_snapshot_profile_so_the_revert_safety_net_is_preserved()
+    {
+        var snapshot = Profile.FromSnapshot(
+            "Default",
+            "127.0.0.1 localhost\n",
+            new[] { new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }) });
+        var store = SeededStore(snapshot, Profile.Of("Work", new[] { "Development" }));
+        var viewModel = BuildViewModel(SampleRepository(), profileStore: store);
+        viewModel.LoadPersistedProfiles(store.GetAll());
+
+        viewModel.RemoveProfile("Default");
+
+        viewModel.Profiles.Select(profile => profile.Name).ShouldBe(new[] { "Default", "Work" });
+        store.Find("Default").ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void PreviewProfile_lists_the_enabled_categories_of_a_category_preset()
+    {
+        var store = SeededStore(Profile.Of("Work", new string?[] { null, "Development" }));
+        var viewModel = BuildViewModel(SampleRepository(), profileStore: store);
+        viewModel.LoadPersistedProfiles(store.GetAll());
+
+        var preview = viewModel.PreviewProfile("Work").ShouldNotBeNull();
+
+        preview.Name.ShouldBe("Work");
+        preview.RestoresSnapshot.ShouldBeFalse();
+        preview.Categories.ShouldBe(new[] { "No category", "Development" });
+    }
+
+    [Fact]
+    public void PreviewProfile_lists_no_categories_for_a_preset_that_enables_nothing()
+    {
+        var store = SeededStore(Profile.Of("Blackout", Array.Empty<string?>()));
+        var viewModel = BuildViewModel(SampleRepository(), profileStore: store);
+        viewModel.LoadPersistedProfiles(store.GetAll());
+
+        viewModel.PreviewProfile("Blackout").ShouldNotBeNull().Categories.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void PreviewProfile_reports_a_snapshot_restores_the_whole_file_with_its_categories()
+    {
+        var snapshot = Profile.FromSnapshot(
+            "Default",
+            "127.0.0.1 localhost\n",
+            new[]
+            {
+                new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }),
+                new CategoryGroup("Development", new[] { new HostEntry("10.0.0.1", "api.test") }),
+            });
+        var store = SeededStore(snapshot);
+        var viewModel = BuildViewModel(SampleRepository(), profileStore: store);
+        viewModel.LoadPersistedProfiles(store.GetAll());
+
+        var preview = viewModel.PreviewProfile("Default").ShouldNotBeNull();
+
+        preview.RestoresSnapshot.ShouldBeTrue();
+        preview.Categories.ShouldBe(new[] { "No category", "Development" });
+    }
+
+    [Fact]
+    public void PreviewProfile_returns_null_for_an_unknown_profile_name()
+    {
+        var viewModel = BuildViewModel(SampleRepository());
+        viewModel.LoadPersistedProfiles(new[] { Profile.Of("Work", new[] { "Development" }) });
+
+        viewModel.PreviewProfile("Missing").ShouldBeNull();
+    }
+
+    private static FakeProfileStore SeededStore(params Profile[] profiles)
+    {
+        var store = new FakeProfileStore();
+        foreach (var profile in profiles)
+        {
+            store.Save(profile);
+        }
+
+        return store;
+    }
+
     private static FakeHostsFileRepository SampleRepository() => new()
     {
         GroupedEntries = new[]
@@ -2197,8 +2390,10 @@ public class MainViewModelTests
     private static MainViewModel BuildViewModel(
         FakeHostsFileRepository repository,
         PendingChangeSet? pendingChanges = null,
-        FakeProfileStore? profileStore = null) =>
-        new(
+        FakeProfileStore? profileStore = null)
+    {
+        var store = profileStore ?? new FakeProfileStore();
+        return new(
             new ViewGroupedEntriesUseCase(repository),
             new ViewHostnameConflictsUseCase(repository),
             new ViewDuplicateEntriesUseCase(repository),
@@ -2209,7 +2404,9 @@ public class MainViewModelTests
             new SearchEntriesByHostnameUseCase(repository),
             new SearchEntriesByIpAddressUseCase(repository),
             new FilterEntriesByCategoryUseCase(repository),
-            new SaveProfileUseCase(profileStore ?? new FakeProfileStore()),
+            new SaveProfileUseCase(store),
+            new RenameProfileUseCase(store),
+            new RemoveProfileUseCase(store),
             new SubscribeToRemoteHostsListUseCase(new StubRemoteHostsListFetcher(), repository),
             new RefreshSubscriptionUseCase(new StubRemoteHostsListFetcher(), repository),
             new RefreshSubscriptionsUseCase(
@@ -2218,6 +2415,7 @@ public class MainViewModelTests
             new ExportConfigurationUseCase(repository, new StubHostsFileExporter()),
             new ImportHostsFileUseCase(new StubHostsFileImporter(), repository),
             pendingChanges ?? new PendingChangeSet());
+    }
 
     private sealed class StubRemoteHostsListFetcher : IRemoteHostsListFetcher
     {
@@ -2258,6 +2456,8 @@ public class MainViewModelTests
         public Profile? Find(string name) => _saved.FirstOrDefault(profile => profile.Name == name);
 
         public IReadOnlyList<Profile> GetAll() => _saved.ToList();
+
+        public void Remove(string name) => _saved.RemoveAll(profile => profile.Name == name);
     }
 
     private sealed class FakeElevationService(bool isElevated) : IElevationService

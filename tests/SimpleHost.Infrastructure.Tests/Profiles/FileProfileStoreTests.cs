@@ -169,5 +169,55 @@ public sealed class FileProfileStoreTests : IDisposable
         Should.Throw<ArgumentNullException>(() => NewStore().Find(null!));
     }
 
+    [Fact]
+    public void Removes_a_saved_profile_by_name_leaving_the_others()
+    {
+        var store = NewStore();
+        store.Save(Profile.Of("Work", new[] { "Development" }));
+        store.Save(Profile.Of("Home", new[] { "Personal" }));
+
+        store.Remove("Work");
+
+        store.GetAll().Select(profile => profile.Name).ShouldBe(new[] { "Home" });
+        store.Find("Work").ShouldBeNull();
+    }
+
+    [Fact]
+    public void Persists_a_removal_across_a_restart()
+    {
+        var store = NewStore();
+        store.Save(Profile.Of("Work", new[] { "Development" }));
+        store.Save(Profile.Of("Home", new[] { "Personal" }));
+
+        store.Remove("Home");
+
+        NewStore().GetAll().Select(profile => profile.Name).ShouldBe(new[] { "Work" });
+    }
+
+    [Fact]
+    public void Removing_a_name_that_matches_nothing_leaves_the_store_unchanged()
+    {
+        var store = NewStore();
+        store.Save(Profile.Of("Work", new[] { "Development" }));
+
+        store.Remove("Missing");
+
+        store.GetAll().Select(profile => profile.Name).ShouldBe(new[] { "Work" });
+    }
+
+    [Fact]
+    public void Removing_a_missing_profile_writes_no_file()
+    {
+        NewStore().Remove("Missing");
+
+        File.Exists(_path).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Rejects_removing_a_null_name()
+    {
+        Should.Throw<ArgumentNullException>(() => NewStore().Remove(null!));
+    }
+
     public void Dispose() => File.Delete(_path);
 }

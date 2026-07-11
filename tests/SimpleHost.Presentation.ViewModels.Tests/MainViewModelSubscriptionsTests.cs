@@ -13,6 +13,8 @@ using SimpleHost.Application.UseCases.ImportHostsFile;
 using SimpleHost.Application.UseCases.PreviewPendingChanges;
 using SimpleHost.Application.UseCases.RefreshSubscription;
 using SimpleHost.Application.UseCases.RefreshSubscriptions;
+using SimpleHost.Application.UseCases.RemoveProfile;
+using SimpleHost.Application.UseCases.RenameProfile;
 using SimpleHost.Application.UseCases.SaveProfile;
 using SimpleHost.Application.UseCases.SearchEntriesByHostname;
 using SimpleHost.Application.UseCases.SearchEntriesByIpAddress;
@@ -290,6 +292,8 @@ public class MainViewModelSubscriptionsTests
             new SearchEntriesByIpAddressUseCase(repository),
             new FilterEntriesByCategoryUseCase(repository),
             new SaveProfileUseCase(new FakeProfileStore()),
+            new RenameProfileUseCase(new FakeProfileStore()),
+            new RemoveProfileUseCase(new FakeProfileStore()),
             new SubscribeToRemoteHostsListUseCase(fetcher, repository),
             new RefreshSubscriptionUseCase(fetcher, repository),
             new RefreshSubscriptionsUseCase(catalog ?? new FakeSubscriptionCatalog(), fetcher, repository),
@@ -347,6 +351,8 @@ public class MainViewModelSubscriptionsTests
             => _saved.FirstOrDefault(profile => profile.Name == name);
 
         public IReadOnlyList<Domain.Profiles.Profile> GetAll() => _saved.ToList();
+
+        public void Remove(string name) => _saved.RemoveAll(existing => existing.Name == name);
     }
 
     private sealed class FakeElevationService(bool isElevated) : IElevationService

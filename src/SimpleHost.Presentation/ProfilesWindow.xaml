@@ -21,15 +21,26 @@
 
         <ui:Card Margin="0,12,0,0">
             <StackPanel>
-                <TextBlock Text="Switch to a saved profile" FontWeight="SemiBold" Margin="0,0,0,6" />
+                <TextBlock Text="Switch to or manage a saved profile" FontWeight="SemiBold" Margin="0,0,0,6" />
                 <StackPanel Orientation="Horizontal">
                     <ComboBox x:Name="ProfilesBox"
                               Width="240"
                               ItemsSource="{Binding Profiles}"
                               DisplayMemberPath="Name"
                               SelectedValuePath="Name"
-                              ToolTip="The saved profiles you can switch to" />
+                              ToolTip="The saved profiles you can switch to or manage" />
                     <Button Content="Switch to" Margin="8,0,0,0" Click="OnSwitchProfileClick" />
+                </StackPanel>
+                <!-- Preview, rename and remove act on the profile selected above. Removing a profile
+                     updates both this list and the persisted store; the built-in "Default" revert
+                     snapshot is protected so the way back to the original file is preserved. -->
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button Content="Preview" Click="OnPreviewProfileClick"
+                            ToolTip="Show what switching to the selected profile would apply or restore" />
+                    <Button Content="Rename" Margin="8,0,0,0" Click="OnRenameProfileClick"
+                            ToolTip="Rename the selected profile" />
+                    <Button Content="Remove" Margin="8,0,0,0" Click="OnRemoveProfileClick"
+                            ToolTip="Delete the selected profile" />
                 </StackPanel>
             </StackPanel>
         </ui:Card>

@@ -85,5 +85,7 @@ public class SaveProfileUseCaseTests
         public Profile? Find(string name) => throw new NotSupportedException();
 
         public IReadOnlyList<Profile> GetAll() => throw new NotSupportedException();
+
+        public void Remove(string name) => throw new NotSupportedException();
     }
 }

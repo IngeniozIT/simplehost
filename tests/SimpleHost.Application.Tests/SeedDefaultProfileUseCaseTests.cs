@@ -70,6 +70,8 @@ public class SeedDefaultProfileUseCaseTests
         }
 
         public IReadOnlyList<Profile> GetAll() => throw new NotSupportedException();
+
+        public void Remove(string name) => throw new NotSupportedException();
     }
 
     private sealed class StubContentAccessor(string content) : IHostsFileContentAccessor

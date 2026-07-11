@@ -12,6 +12,8 @@ using SimpleHost.Application.UseCases.ImportHostsFile;
 using SimpleHost.Application.UseCases.PreviewPendingChanges;
 using SimpleHost.Application.UseCases.RefreshSubscription;
 using SimpleHost.Application.UseCases.RefreshSubscriptions;
+using SimpleHost.Application.UseCases.RemoveProfile;
+using SimpleHost.Application.UseCases.RenameProfile;
 using SimpleHost.Application.UseCases.SaveProfile;
 using SimpleHost.Application.UseCases.SeedDefaultProfile;
 using SimpleHost.Application.UseCases.SearchEntriesByHostname;
@@ -99,6 +101,8 @@ internal sealed class CompositionRoot : IDisposable
             new SearchEntriesByIpAddressUseCase(repository),
             new FilterEntriesByCategoryUseCase(repository),
             new SaveProfileUseCase(profileStore),
+            new RenameProfileUseCase(profileStore),
+            new RemoveProfileUseCase(profileStore),
             new SubscribeToRemoteHostsListUseCase(remoteFetcher, repository),
             new RefreshSubscriptionUseCase(remoteFetcher, repository),
             new RefreshSubscriptionsUseCase(subscriptionCatalog, remoteFetcher, repository),

@@ -11,6 +11,8 @@ using SimpleHost.Application.UseCases.ImportHostsFile;
 using SimpleHost.Application.UseCases.PreviewPendingChanges;
 using SimpleHost.Application.UseCases.RefreshSubscription;
 using SimpleHost.Application.UseCases.RefreshSubscriptions;
+using SimpleHost.Application.UseCases.RemoveProfile;
+using SimpleHost.Application.UseCases.RenameProfile;
 using SimpleHost.Application.UseCases.SaveProfile;
 using SimpleHost.Application.UseCases.SearchEntriesByHostname;
 using SimpleHost.Application.UseCases.SearchEntriesByIpAddress;
@@ -105,6 +107,8 @@ public class MainViewModelDeepLinkTests
             new SearchEntriesByIpAddressUseCase(repository),
             new FilterEntriesByCategoryUseCase(repository),
             new SaveProfileUseCase(new StubProfileStore()),
+            new RenameProfileUseCase(new StubProfileStore()),
+            new RemoveProfileUseCase(new StubProfileStore()),
             new SubscribeToRemoteHostsListUseCase(new StubRemoteHostsListFetcher(), repository),
             new RefreshSubscriptionUseCase(new StubRemoteHostsListFetcher(), repository),
             new RefreshSubscriptionsUseCase(
@@ -147,6 +151,8 @@ public class MainViewModelDeepLinkTests
         public Profile? Find(string name) => null;
 
         public IReadOnlyList<Profile> GetAll() => Array.Empty<Profile>();
+
+        public void Remove(string name) => throw new NotSupportedException();
     }
 
     private sealed class FakeElevationService : IElevationService

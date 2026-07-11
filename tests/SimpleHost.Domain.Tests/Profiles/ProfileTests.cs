@@ -188,4 +188,44 @@ public class ProfileTests
 
         profile.EnabledCategories.ShouldBeEmpty();
     }
+
+    [Fact]
+    public void Renaming_a_category_preset_keeps_its_enabled_categories_in_order()
+    {
+        var renamed = Profile.Of("Work", new string?[] { null, "Development", "Blocklist" })
+            .Renamed("Office");
+
+        renamed.Name.ShouldBe("Office");
+        renamed.EnabledCategories.ShouldBe(new string?[] { null, "Development", "Blocklist" });
+        renamed.RestoresSnapshot.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Renaming_a_snapshot_keeps_its_captured_content_and_grouping()
+    {
+        var groups = new[]
+        {
+            new CategoryGroup(null, new[] { new HostEntry("127.0.0.1", "localhost") }),
+        };
+        var renamed = Profile.FromSnapshot("Default", "127.0.0.1 localhost\n", groups)
+            .Renamed("Original");
+
+        renamed.Name.ShouldBe("Original");
+        renamed.RestoresSnapshot.ShouldBeTrue();
+        renamed.Snapshot.ShouldBe("127.0.0.1 localhost\n");
+        renamed.SnapshotGroups!.Select(group => group.Name).ShouldBe(new string?[] { null });
+        renamed.SnapshotGroups![0].Entries.ShouldBe(new[] { new HostEntry("127.0.0.1", "localhost") });
+    }
+
+    [Fact]
+    public void Renaming_trims_surrounding_whitespace_from_the_new_name()
+    {
+        Profile.Of("Work", new[] { "Development" }).Renamed("  Office  ").Name.ShouldBe("Office");
+    }
+
+    [Fact]
+    public void Renaming_to_a_blank_name_is_rejected()
+    {
+        Should.Throw<ArgumentException>(() => Profile.Of("Work", new[] { "Development" }).Renamed("   "));
+    }
 }

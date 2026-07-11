@@ -1,0 +1,54 @@
+<Window x:Class="SimpleHost.Presentation.ProfilesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="Profiles"
+        SizeToContent="Height"
+        Width="480"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ApplicationBackgroundBrush}"
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+
+    <!-- The Profiles area, moved off the former tab into a modal dialog reached from the Profiles menu.
+         It is bound to the same MainViewModel as the window, so switching to a saved profile or saving
+         the current setup stages exactly the pending changes it did before. -->
+    <StackPanel Margin="16">
+        <TextBlock TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                   Text="A profile is a named set of enabled categories, e.g. 'Work' or 'Home'. Switching to one enables its categories and disables the rest as pending changes." />
+
+        <ui:Card Margin="0,12,0,0">
+            <StackPanel>
+                <TextBlock Text="Switch to a saved profile" FontWeight="SemiBold" Margin="0,0,0,6" />
+                <StackPanel Orientation="Horizontal">
+                    <ComboBox x:Name="ProfilesBox"
+                              Width="240"
+                              ItemsSource="{Binding Profiles}"
+                              DisplayMemberPath="Name"
+                              SelectedValuePath="Name"
+                              ToolTip="The saved profiles you can switch to" />
+                    <Button Content="Switch to" Margin="8,0,0,0" Click="OnSwitchProfileClick" />
+                </StackPanel>
+            </StackPanel>
+        </ui:Card>
+
+        <ui:Card Margin="0,12,0,0">
+            <StackPanel>
+                <TextBlock Text="Save the current setup as a profile" FontWeight="SemiBold" Margin="0,0,0,6" />
+                <StackPanel Orientation="Horizontal">
+                    <ui:TextBox x:Name="ProfileNameBox"
+                                Width="240"
+                                PlaceholderText="Profile name"
+                                ToolTip="Name to save the currently enabled categories under" />
+                    <Button Content="Save profile" Margin="8,0,0,0" Click="OnSaveProfileClick" />
+                </StackPanel>
+            </StackPanel>
+        </ui:Card>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Close" MinWidth="80" IsCancel="True" IsDefault="True" Click="OnCloseClick" />
+        </StackPanel>
+    </StackPanel>
+</Window>

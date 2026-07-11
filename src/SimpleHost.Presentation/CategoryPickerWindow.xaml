@@ -14,7 +14,7 @@
     <!-- Pick the destination category for a move. The list is filled in code-behind from the current
          groups, with "No category" offered as the first option; OK is enabled once a row is picked. -->
     <StackPanel Margin="16">
-        <TextBlock Text="Move to:" Margin="0,0,0,6" />
+        <TextBlock x:Name="PromptText" Text="Move to:" Margin="0,0,0,6" />
         <ListBox x:Name="CategoryList"
                  MaxHeight="320"
                  SelectionChanged="OnSelectionChanged"

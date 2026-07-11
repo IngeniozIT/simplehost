@@ -474,50 +474,33 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
-    // --- Profiles: save the current enabled categories, switch to a saved one ----------------
+    // --- Menu bar: Profiles, Subscriptions and the About box ---------------------------------
 
-    private void OnSaveProfileClick(object sender, RoutedEventArgs e)
-    {
-        // Save the categories that are enabled right now under the typed name, replacing any profile
-        // already saved under it. A blank name saves nothing, so the view-model ignores it; clear the
-        // box either way once the save has been driven.
-        var name = ProfileNameBox.Text.Trim();
-        if (name.Length == 0)
-        {
-            return;
-        }
+    private void OnOpenProfilesClick(object sender, RoutedEventArgs e)
+        // The Profiles menu opens a modal dialog bound to the same view-model, so saving the current
+        // setup or switching to a saved profile stages exactly the pending changes it did as a tab.
+        => new ProfilesWindow(_viewModel) { Owner = this }.ShowDialog();
 
-        _viewModel.SaveProfile(name);
-        ProfileNameBox.Clear();
-    }
+    private void OnOpenSubscriptionsClick(object sender, RoutedEventArgs e)
+        // The Subscriptions menu opens a modal dialog bound to the same view-model, so subscribing to
+        // and refreshing remote lists behaves exactly as it did on the former tab.
+        => new SubscriptionsWindow(_viewModel) { Owner = this }.ShowDialog();
 
-    private void OnSwitchProfileClick(object sender, RoutedEventArgs e)
-    {
-        // Recall the profile picked in the combo by its name (SelectedValuePath), staging the pending
-        // changes that enable its categories and disable the rest. With nothing selected, do nothing.
-        if (ProfilesBox.SelectedValue is string name)
-        {
-            _viewModel.ActivateProfile(name);
-        }
-    }
-
-    // --- Remote subscriptions: subscribe, refresh one, refresh all ---------------------------
-
-    private void OnSubscribeClick(object sender, RoutedEventArgs e)
-        => _viewModel.SubscribeToRemoteList(SubscriptionUrlBox.Text.Trim(), SubscriptionCategoryBox.Text.Trim());
-
-    private void OnRefreshSubscriptionClick(object sender, RoutedEventArgs e)
-        => _viewModel.RefreshSubscription(SubscriptionUrlBox.Text.Trim(), SubscriptionCategoryBox.Text.Trim());
-
-    private void OnRefreshAllSubscriptionsClick(object sender, RoutedEventArgs e)
-        => _viewModel.RefreshAllSubscriptions();
+    private void OnAboutClick(object sender, RoutedEventArgs e)
+        => System.Windows.MessageBox.Show(
+            this,
+            "SimpleHost\n\nManage the Windows hosts file, organised by category.",
+            "About SimpleHost",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
 
     // --- Import and export external hosts files ----------------------------------------------
 
     private void OnImportClick(object sender, RoutedEventArgs e)
     {
-        // Import needs a target category picked (its Name is null for the "No category" group).
-        if (TransferCategoryBox.SelectedItem is not CategoryGroupViewModel group)
+        // Import needs a target category. It is picked here through the same modal category picker used
+        // for a move (the "No category" group's Name is null), then the source file is chosen.
+        if (PickCategory("Import into category", "Import into:", "Import") is not { } pick)
         {
             return;
         }
@@ -525,14 +508,15 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Import hosts file" };
         if (dialog.ShowDialog(this) == true)
         {
-            _viewModel.ImportEntries(dialog.FileName, group.Name);
+            _viewModel.ImportEntries(dialog.FileName, pick.Category);
         }
     }
 
     private void OnExportCategoryClick(object sender, RoutedEventArgs e)
     {
-        // Export-category needs the source category picked (null Name is the "No category" group).
-        if (TransferCategoryBox.SelectedItem is not CategoryGroupViewModel group)
+        // Export-category needs the source category, picked through the same modal category picker
+        // (null Name is the "No category" group), then the destination file is chosen.
+        if (PickCategory("Export category", "Export category:", "Export") is not { } pick)
         {
             return;
         }
@@ -540,7 +524,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         var dialog = new Microsoft.Win32.SaveFileDialog { Title = "Export category", FileName = "hosts" };
         if (dialog.ShowDialog(this) == true)
         {
-            _viewModel.ExportCategory(group.Name, dialog.FileName);
+            _viewModel.ExportCategory(pick.Category, dialog.FileName);
         }
     }
 
@@ -553,9 +537,36 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
+    // Show the shared category picker with import/export-specific wording and return the chosen
+    // category (its Name is null for "No category"), or null if the user cancelled. The nested nullable
+    // is wrapped so a genuine "No category" choice is distinguishable from a cancel.
+    private CategoryPick? PickCategory(string title, string prompt, string confirmLabel)
+    {
+        var picker = new CategoryPickerWindow(_viewModel.Groups, title, prompt, confirmLabel) { Owner = this };
+        return picker.ShowDialog() == true ? new CategoryPick(picker.ChosenCategory) : null;
+    }
+
+    private readonly record struct CategoryPick(string? Category);
+
     private void ReportOperationFailure(string message)
+        // A subscription/import/export failure is reported over whichever window is active — the
+        // Subscriptions dialog when it drove the operation, otherwise this main window — so the warning
+        // is never hidden behind a modal child.
         => System.Windows.MessageBox.Show(
-            this, message, "SimpleHost", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ActiveWindow(), message, "SimpleHost", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+    private Window ActiveWindow()
+    {
+        foreach (Window window in System.Windows.Application.Current.Windows)
+        {
+            if (window.IsActive)
+            {
+                return window;
+            }
+        }
+
+        return this;
+    }
 
     // --- Drag and drop: move between categories, reorder within one --------------------------
 

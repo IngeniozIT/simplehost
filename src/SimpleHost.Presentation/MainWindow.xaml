@@ -43,554 +43,463 @@
     <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <ui:TitleBar Grid.Row="0" Title="SimpleHost" />
 
-        <TabControl Grid.Row="1" Margin="12,0,12,12">
+        <!-- Traditional Windows menu bar. Settings, Import/Export, Profiles and Subscriptions are
+             reached from here — as menu items that open dialogs, or a checkable option — leaving the
+             entries list as the sole main content. It sits in its own row directly beneath the Fluent
+             title bar and is themed by WPF-UI in both light and dark. -->
+        <Menu Grid.Row="1" Margin="8,0,8,0" Background="Transparent">
+            <MenuItem Header="_File">
+                <MenuItem Header="_Import into Category..." Click="OnImportClick" />
+                <MenuItem Header="_Export Category..." Click="OnExportCategoryClick" />
+                <MenuItem Header="Export _All..." Click="OnExportConfigurationClick" />
+            </MenuItem>
+            <MenuItem Header="_Profiles">
+                <MenuItem Header="_Save Current Setup as Profile..." Click="OnOpenProfilesClick" />
+                <MenuItem Header="S_witch to a Saved Profile..." Click="OnOpenProfilesClick" />
+            </MenuItem>
+            <MenuItem Header="_Subscriptions">
+                <MenuItem Header="_Manage Subscriptions..." Click="OnOpenSubscriptionsClick" />
+            </MenuItem>
+            <MenuItem Header="_Options">
+                <MenuItem Header="_Flush DNS Cache After Saving"
+                          IsCheckable="True"
+                          IsChecked="{Binding FlushDnsAfterSaving, Mode=TwoWay}"
+                          ToolTip="After a successful save that wrote changes, flush the system DNS cache so lookups pick up the change immediately" />
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_About SimpleHost..." Click="OnAboutClick" />
+            </MenuItem>
+        </Menu>
 
-            <!-- ================= ENTRIES ================= -->
-            <TabItem Header="Entries">
-                <Grid Margin="0,12,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
+        <!-- ================= ENTRIES (the main content) ================= -->
+        <Grid Grid.Row="2" Margin="12,8,12,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-                    <!-- Command bar: search + filter. Adding an entry is inline — the plus button in
-                         each category header opens an editable draft row in that category. -->
-                    <Grid Grid.Row="0" Margin="0,0,0,12">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:TextBox x:Name="SearchBox"
-                                        Width="398"
-                                        Icon="{ui:SymbolIcon Search24}"
-                                        PlaceholderText="Search IP, hostname or description"
-                                        Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}" />
-                            <ComboBox x:Name="CategoryFilterBox"
-                                      Width="170"
-                                      Margin="8,0,0,0"
-                                      ItemsSource="{Binding Groups}"
-                                      DisplayMemberPath="DisplayName"
-                                      ToolTip="Show only one category"
-                                      SelectionChanged="OnCategoryFilterChanged" />
-                            <Button Content="Clear"
-                                    Margin="8,0,0,0"
-                                    ToolTip="Clear the search and category filter"
-                                    Click="OnClearFiltersClick" />
-                        </StackPanel>
-                    </Grid>
+            <!-- Command bar: search + filter. Adding an entry is inline — the plus button in
+                 each category header opens an editable draft row in that category. -->
+            <Grid Grid.Row="0" Margin="0,0,0,12">
+                <StackPanel Orientation="Horizontal">
+                    <ui:TextBox x:Name="SearchBox"
+                                Width="398"
+                                Icon="{ui:SymbolIcon Search24}"
+                                PlaceholderText="Search IP, hostname or description"
+                                Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}" />
+                    <ComboBox x:Name="CategoryFilterBox"
+                              Width="170"
+                              Margin="8,0,0,0"
+                              ItemsSource="{Binding Groups}"
+                              DisplayMemberPath="DisplayName"
+                              ToolTip="Show only one category"
+                              SelectionChanged="OnCategoryFilterChanged" />
+                    <Button Content="Clear"
+                            Margin="8,0,0,0"
+                            ToolTip="Clear the search and category filter"
+                            Click="OnClearFiltersClick" />
+                </StackPanel>
+            </Grid>
 
-                    <!-- Conflict and duplicate warnings, each shown only when relevant. -->
-                    <StackPanel Grid.Row="2">
-                        <ui:Card Margin="0,0,0,12"
-                                 Visibility="{Binding HasHostnameConflicts, Converter={StaticResource BoolToVisibility}}">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
-                                    <ui:SymbolIcon Symbol="Warning24"
-                                                   Foreground="{DynamicResource SystemFillColorCriticalBrush}"
-                                                   Margin="0,0,8,0" />
-                                    <TextBlock Text="Hostname conflicts"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
-                                </StackPanel>
-                                <ItemsControl ItemsSource="{Binding HostnameConflictWarnings}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,1,0,0" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-                        </ui:Card>
-                        <ui:Card Margin="0,0,0,12"
-                                 Visibility="{Binding HasDuplicateEntries, Converter={StaticResource BoolToVisibility}}">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
-                                    <ui:SymbolIcon Symbol="Warning24"
-                                                   Foreground="{DynamicResource SystemFillColorCautionBrush}"
-                                                   Margin="0,0,8,0" />
-                                    <TextBlock Text="Duplicate entries"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SystemFillColorCautionBrush}" />
-                                </StackPanel>
-                                <ItemsControl ItemsSource="{Binding DuplicateEntryWarnings}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,1,0,0" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-                        </ui:Card>
-                    </StackPanel>
-
-                    <!-- Contextual bulk-action bar: shown only while entries are selected. -->
-                    <ui:Card Grid.Row="3"
-                             Margin="0,0,0,12"
-                             Visibility="{Binding SelectedEntries.Count, Converter={StaticResource CountToVisibility}}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0"
-                                       VerticalAlignment="Center"
+            <!-- Conflict and duplicate warnings, each shown only when relevant. -->
+            <StackPanel Grid.Row="2">
+                <ui:Card Margin="0,0,0,12"
+                         Visibility="{Binding HasHostnameConflicts, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                            <ui:SymbolIcon Symbol="Warning24"
+                                           Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                           Margin="0,0,8,0" />
+                            <TextBlock Text="Hostname conflicts"
                                        FontWeight="SemiBold"
-                                       Text="{Binding SelectedEntries.Count, StringFormat='{}{0} selected'}" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <Button Content="Enable" Click="OnEnableSelectedClick" />
-                                <Button Content="Disable" Margin="8,0,0,0" Click="OnDisableSelectedClick" />
-                                <Button Content="Move to…" Margin="8,0,0,0" Click="OnMoveSelectedClick" />
-                                <Button Content="Delete" Margin="8,0,0,0" Click="OnDeleteSelectedClick" />
-                            </StackPanel>
-                        </Grid>
-                    </ui:Card>
-
-                    <!-- The grouped host entries: the "No category" group first, then each category. -->
-                    <ScrollViewer Grid.Row="4"
-                                  x:Name="EntriesScroller"
-                                  AllowDrop="True"
-                                  PreviewDragOver="OnEntriesPreviewDragOver"
-                                  Drop="OnEntriesDrop"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel>
-                        <ItemsControl ItemsSource="{Binding VisibleGroups}">
+                                       Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding HostnameConflictWarnings}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <StackPanel Margin="0,0,0,18">
-
-                                        <!-- Category header: name, count, and per-category actions.
-                                             Dropping an entry here moves it into this category. -->
-                                        <Border BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                                                BorderThickness="0,0,0,1"
-                                                Padding="2,0,2,6"
-                                                Margin="0,0,0,6"
-                                                Background="Transparent"
-                                                AllowDrop="True"
-                                                DragOver="OnEntryDragOver"
-                                                Drop="OnCategoryDrop">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding DisplayName}"
-                                                               FontSize="16"
-                                                               FontWeight="SemiBold"
-                                                               VerticalAlignment="Center" />
-                                                    <Border Margin="8,0,0,0"
-                                                            Padding="7,1"
-                                                            VerticalAlignment="Center"
-                                                            CornerRadius="9"
-                                                            Background="{DynamicResource ControlFillColorSecondaryBrush}">
-                                                        <TextBlock Text="{Binding Entries.Count}"
-                                                                   FontSize="11"
-                                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                                    </Border>
-                                                    <!-- Adds an editable, empty entry row at the bottom of this category. -->
-                                                    <ui:Button Margin="6,0,0,0"
-                                                               Padding="6,2"
-                                                               VerticalAlignment="Center"
-                                                               Appearance="Subtle"
-                                                               Icon="{ui:SymbolIcon Add24}"
-                                                               ToolTip="Add an entry to this category"
-                                                               Click="OnAddEntryInlineClick" />
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                                    <Button Content="Enable all" Click="OnEnableCategoryClick" />
-                                                    <Button Content="Disable all" Margin="6,0,0,0" Click="OnDisableCategoryClick" />
-                                                    <Button x:Name="RenameCategoryButton"
-                                                            Content="Rename" Margin="6,0,0,0" Click="OnRenameCategoryClick" />
-                                                    <Button x:Name="DeleteCategoryButton"
-                                                            Content="Delete" Margin="6,0,0,0" Click="OnDeleteCategoryClick" />
-                                                </StackPanel>
-                                            </Grid>
-                                        </Border>
-
-                                        <!-- Entries in this category. -->
-                                        <ItemsControl ItemsSource="{Binding Entries}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Border x:Name="Row"
-                                                            Padding="6,4"
-                                                            Margin="0,1"
-                                                            CornerRadius="6"
-                                                            Background="Transparent"
-                                                            AllowDrop="True"
-                                                            PreviewMouseLeftButtonDown="OnRowMouseDown"
-                                                            PreviewMouseMove="OnRowMouseMove"
-                                                            DragOver="OnEntryDragOver"
-                                                            Drop="OnRowDrop">
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="Auto" />
-                                                                <ColumnDefinition Width="Auto" />
-                                                                <ColumnDefinition Width="150" />
-                                                                <ColumnDefinition Width="*" />
-                                                                <ColumnDefinition Width="Auto" />
-                                                            </Grid.ColumnDefinitions>
-
-                                                            <CheckBox Grid.Column="0"
-                                                                      Margin="0,0,10,0"
-                                                                      VerticalAlignment="Center"
-                                                                      ToolTip="Select for a bulk action"
-                                                                      Checked="OnEntrySelected"
-                                                                      Unchecked="OnEntryDeselected" />
-
-                                                            <ui:ToggleSwitch Grid.Column="1"
-                                                                             Margin="0,0,14,0"
-                                                                             VerticalAlignment="Center"
-                                                                             ToolTip="Enable or disable this entry"
-                                                                             IsChecked="{Binding IsActive, Mode=OneWay}"
-                                                                             Click="OnRowToggle" />
-
-                                                            <TextBox Grid.Column="2"
-                                                                     x:Name="IpBox"
-                                                                     Style="{StaticResource InlineEditTextBox}"
-                                                                     Text="{Binding IpAddress, Mode=OneWay}"
-                                                                     Tag="IpAddress"
-                                                                     ToolTip="Click to edit the IP address"
-                                                                     FontFamily="Consolas"
-                                                                     VerticalAlignment="Center"
-                                                                     KeyDown="OnInlineEditKeyDown"
-                                                                     LostKeyboardFocus="OnInlineEditLostFocus" />
-
-                                                            <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="0,0,12,0">
-                                                                <TextBox x:Name="Host"
-                                                                         Style="{StaticResource InlineEditTextBox}"
-                                                                         Text="{Binding Hostname, Mode=OneWay}"
-                                                                         Tag="Hostname"
-                                                                         ToolTip="Click to edit the hostname"
-                                                                         KeyDown="OnInlineEditKeyDown"
-                                                                         LostKeyboardFocus="OnInlineEditLostFocus" />
-                                                                <Grid>
-                                                                    <!-- Placeholder shown only while hovering an entry that has no description yet,
-                                                                         so a description can be added in place without cluttering calm rows. -->
-                                                                    <TextBlock Text="Add a description"
-                                                                               FontSize="12"
-                                                                               Margin="4,1"
-                                                                               VerticalAlignment="Center"
-                                                                               IsHitTestVisible="False"
-                                                                               Foreground="{DynamicResource TextFillColorDisabledBrush}">
-                                                                        <TextBlock.Style>
-                                                                            <Style TargetType="TextBlock">
-                                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                                                <Style.Triggers>
-                                                                                    <MultiDataTrigger>
-                                                                                        <MultiDataTrigger.Conditions>
-                                                                                            <Condition Binding="{Binding Text, ElementName=Description}" Value="" />
-                                                                                            <Condition Binding="{Binding IsMouseOver, ElementName=Row}" Value="True" />
-                                                                                        </MultiDataTrigger.Conditions>
-                                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                                    </MultiDataTrigger>
-                                                                                </Style.Triggers>
-                                                                            </Style>
-                                                                        </TextBlock.Style>
-                                                                    </TextBlock>
-                                                                    <TextBox x:Name="Description"
-                                                                             Style="{StaticResource InlineEditTextBox}"
-                                                                             Text="{Binding Comment, Mode=OneWay}"
-                                                                             Tag="Comment"
-                                                                             ToolTip="Click to edit the description"
-                                                                             FontSize="12"
-                                                                             Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                             KeyDown="OnInlineEditKeyDown"
-                                                                             LostKeyboardFocus="OnInlineEditLostFocus" />
-                                                                </Grid>
-                                                            </StackPanel>
-
-                                                            <!-- Always-available per-row delete: a single click stages this entry's
-                                                                 removal through the confirmed MainViewModel.DeleteEntry path, so the
-                                                                 pending deletion shows up in the list like any other change. Editing is
-                                                                 done inline in the fields above and moving is done by dragging the row,
-                                                                 so those hover buttons are gone; only delete needs its own control. -->
-                                                            <ui:Button Grid.Column="4"
-                                                                       VerticalAlignment="Center"
-                                                                       Appearance="Subtle"
-                                                                       Icon="{ui:SymbolIcon Delete24}"
-                                                                       ToolTip="Delete this entry"
-                                                                       Click="OnDeleteEntryClick" />
-                                                        </Grid>
-                                                    </Border>
-
-                                                    <DataTemplate.Triggers>
-                                                        <!-- Disabled: dimmed row and struck-through hostname. -->
-                                                        <DataTrigger Binding="{Binding IsActive}" Value="False">
-                                                            <Setter TargetName="Row" Property="Opacity" Value="0.55" />
-                                                            <Setter TargetName="Host" Property="TextDecorations" Value="Strikethrough" />
-                                                        </DataTrigger>
-                                                        <!-- Highlight the row on hover. -->
-                                                        <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="Row" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
-                                                        </Trigger>
-                                                    </DataTemplate.Triggers>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-
-                                        <!-- Inline "new entry" draft row: shown at the bottom of this category only while the
-                                             user is adding an entry to it (the plus button in this header opened it). The user
-                                             types the IP address, hostname and optional description directly and commits with
-                                             Enter, the check button, or by clicking away; Escape (or the cross) cancels. It
-                                             stages through the same validated MainViewModel.NewEntry / SaveNewEntry path, so an
-                                             empty row stages nothing and a valid one appears as a pending add. -->
-                                        <Border x:Name="AddRow"
-                                                Padding="6,4"
-                                                Margin="0,1"
-                                                CornerRadius="6"
-                                                Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                                KeyDown="OnAddRowKeyDown"
-                                                LostKeyboardFocus="OnAddRowLostFocus"
-                                                IsVisibleChanged="OnAddRowVisibleChanged">
-                                            <Border.Visibility>
-                                                <MultiBinding Converter="{StaticResource AddEntryRowVisibility}">
-                                                    <Binding Path="DataContext.IsAddingEntry"
-                                                             RelativeSource="{RelativeSource AncestorType={x:Type ui:FluentWindow}}" />
-                                                    <Binding Path="DataContext.AddingEntryCategory"
-                                                             RelativeSource="{RelativeSource AncestorType={x:Type ui:FluentWindow}}" />
-                                                    <Binding Path="Name" />
-                                                </MultiBinding>
-                                            </Border.Visibility>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="150" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <ui:TextBox x:Name="AddIpBox"
-                                                            Grid.Column="0"
-                                                            FontFamily="Consolas"
-                                                            VerticalAlignment="Center"
-                                                            PlaceholderText="IP address"
-                                                            Text="{Binding DataContext.NewEntry.IpAddress, RelativeSource={RelativeSource AncestorType={x:Type ui:FluentWindow}}, UpdateSourceTrigger=PropertyChanged}" />
-
-                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,8,0">
-                                                    <ui:TextBox PlaceholderText="Hostname"
-                                                                Text="{Binding DataContext.NewEntry.Hostname, RelativeSource={RelativeSource AncestorType={x:Type ui:FluentWindow}}, UpdateSourceTrigger=PropertyChanged}" />
-                                                    <ui:TextBox Margin="0,4,0,0"
-                                                                FontSize="12"
-                                                                PlaceholderText="Description (optional)"
-                                                                Text="{Binding DataContext.NewEntry.Comment, RelativeSource={RelativeSource AncestorType={x:Type ui:FluentWindow}}, UpdateSourceTrigger=PropertyChanged}" />
-                                                </StackPanel>
-
-                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                                    <ui:Button Appearance="Primary"
-                                                               Icon="{ui:SymbolIcon Checkmark24}"
-                                                               ToolTip="Add this entry"
-                                                               Click="OnAddRowConfirmClick" />
-                                                    <ui:Button Margin="6,0,0,0"
-                                                               Appearance="Subtle"
-                                                               Icon="{ui:SymbolIcon Dismiss24}"
-                                                               ToolTip="Cancel"
-                                                               Click="OnAddRowCancelClick" />
-                                                </StackPanel>
-                                            </Grid>
-                                        </Border>
-
-                                    </StackPanel>
-
-                                    <DataTemplate.Triggers>
-                                        <!-- The pinned "No category" group cannot be renamed or deleted. -->
-                                        <DataTrigger Binding="{Binding IsUncategorized}" Value="True">
-                                            <Setter TargetName="RenameCategoryButton" Property="Visibility" Value="Collapsed" />
-                                            <Setter TargetName="DeleteCategoryButton" Property="Visibility" Value="Collapsed" />
-                                        </DataTrigger>
-                                    </DataTemplate.Triggers>
+                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,1,0,0" />
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-
-                        <!-- Placeholder "new category" affordance, styled to read like a real, empty
-                             category header rather than a plain form: type a name where a category title
-                             would be and click the plus to create that category. It stages through the same
-                             validated MainViewModel.CreateCategory path (a CreateCategoryChange pending
-                             change), after which the new, empty category appears in the list above and the
-                             input clears for the next one. A blank or whitespace-only name creates nothing. -->
-                        <StackPanel Margin="0,0,0,18">
-                            <Border BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                                    BorderThickness="0,0,0,1"
-                                    Padding="2,0,2,6"
-                                    Margin="0,0,0,6"
-                                    Background="Transparent">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <ui:TextBox x:Name="NewCategoryBox"
-                                                Width="300"
-                                                FontSize="16"
-                                                FontWeight="SemiBold"
-                                                VerticalAlignment="Center"
-                                                PlaceholderText="New category"
-                                                ToolTip="Type a name and click the plus to create a category"
-                                                KeyDown="OnNewCategoryKeyDown" />
-                                    <!-- Creates the category named in the box (mirrors the per-category add-entry plus). -->
-                                    <ui:Button x:Name="CreateCategoryButton"
-                                               Margin="6,0,0,0"
-                                               Padding="6,2"
-                                               VerticalAlignment="Center"
-                                               Appearance="Subtle"
-                                               Icon="{ui:SymbolIcon Add24}"
-                                               ToolTip="Create this category"
-                                               Click="OnCreateCategoryClick" />
-                                </StackPanel>
-                            </Border>
+                    </StackPanel>
+                </ui:Card>
+                <ui:Card Margin="0,0,0,12"
+                         Visibility="{Binding HasDuplicateEntries, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                            <ui:SymbolIcon Symbol="Warning24"
+                                           Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                           Margin="0,0,8,0" />
+                            <TextBlock Text="Duplicate entries"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource SystemFillColorCautionBrush}" />
                         </StackPanel>
-                        </StackPanel>
-                    </ScrollViewer>
+                        <ItemsControl ItemsSource="{Binding DuplicateEntryWarnings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,1,0,0" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ui:Card>
+            </StackPanel>
 
-                    <!-- Pending-changes bar: docked beneath the list, shown only while changes are staged. -->
-                    <ui:Card Grid.Row="5"
-                             Margin="0,12,0,0"
-                             Visibility="{Binding HasPendingChanges, Converter={StaticResource BoolToVisibility}}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <ui:SymbolIcon Symbol="Edit24" Margin="0,0,10,0" />
-                                <TextBlock VerticalAlignment="Center"
-                                           FontWeight="SemiBold"
-                                           Text="{Binding PendingChangeCount, StringFormat='{}{0} unsaved change(s)'}" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <Button Content="Preview"
-                                        IsEnabled="{Binding HasPendingChanges}"
-                                        Click="OnPreviewPendingChangesClick" />
-                                <Button Content="Discard"
-                                        Margin="8,0,0,0"
-                                        Command="{Binding DiscardCommand}" />
-                                <ui:Button Content="Apply"
-                                           Appearance="Primary"
-                                           Margin="8,0,0,0"
-                                           Command="{Binding ApplyCommand}" />
-                            </StackPanel>
-                        </Grid>
-                    </ui:Card>
+            <!-- Contextual bulk-action bar: shown only while entries are selected. -->
+            <ui:Card Grid.Row="3"
+                     Margin="0,0,0,12"
+                     Visibility="{Binding SelectedEntries.Count, Converter={StaticResource CountToVisibility}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               VerticalAlignment="Center"
+                               FontWeight="SemiBold"
+                               Text="{Binding SelectedEntries.Count, StringFormat='{}{0} selected'}" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Content="Enable" Click="OnEnableSelectedClick" />
+                        <Button Content="Disable" Margin="8,0,0,0" Click="OnDisableSelectedClick" />
+                        <Button Content="Move to…" Margin="8,0,0,0" Click="OnMoveSelectedClick" />
+                        <Button Content="Delete" Margin="8,0,0,0" Click="OnDeleteSelectedClick" />
+                    </StackPanel>
                 </Grid>
-            </TabItem>
+            </ui:Card>
 
-            <!-- ================= PROFILES ================= -->
-            <TabItem Header="Profiles">
-                <StackPanel Margin="0,16,0,0" MaxWidth="560" HorizontalAlignment="Left">
-                    <TextBlock Text="Profiles" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,4" />
-                    <TextBlock TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               Text="A profile is a named set of enabled categories, e.g. 'Work' or 'Home'. Switching to one enables its categories and disables the rest as pending changes." />
+            <!-- The grouped host entries: the "No category" group first, then each category. -->
+            <ScrollViewer Grid.Row="4"
+                          x:Name="EntriesScroller"
+                          AllowDrop="True"
+                          PreviewDragOver="OnEntriesPreviewDragOver"
+                          Drop="OnEntriesDrop"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                <ItemsControl ItemsSource="{Binding VisibleGroups}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,0,0,18">
 
-                    <ui:Card Margin="0,12,0,0">
-                        <StackPanel>
-                            <TextBlock Text="Switch to a saved profile" FontWeight="SemiBold" Margin="0,0,0,6" />
-                            <StackPanel Orientation="Horizontal">
-                                <ComboBox x:Name="ProfilesBox"
-                                          Width="240"
-                                          ItemsSource="{Binding Profiles}"
-                                          DisplayMemberPath="Name"
-                                          SelectedValuePath="Name"
-                                          ToolTip="The saved profiles you can switch to" />
-                                <Button Content="Switch to" Margin="8,0,0,0" Click="OnSwitchProfileClick" />
+                                <!-- Category header: name, count, and per-category actions.
+                                     Dropping an entry here moves it into this category. -->
+                                <Border BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="0,0,0,1"
+                                        Padding="2,0,2,6"
+                                        Margin="0,0,0,6"
+                                        Background="Transparent"
+                                        AllowDrop="True"
+                                        DragOver="OnEntryDragOver"
+                                        Drop="OnCategoryDrop">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       FontSize="16"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center" />
+                                            <Border Margin="8,0,0,0"
+                                                    Padding="7,1"
+                                                    VerticalAlignment="Center"
+                                                    CornerRadius="9"
+                                                    Background="{DynamicResource ControlFillColorSecondaryBrush}">
+                                                <TextBlock Text="{Binding Entries.Count}"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            </Border>
+                                            <!-- Adds an editable, empty entry row at the bottom of this category. -->
+                                            <ui:Button Margin="6,0,0,0"
+                                                       Padding="6,2"
+                                                       VerticalAlignment="Center"
+                                                       Appearance="Subtle"
+                                                       Icon="{ui:SymbolIcon Add24}"
+                                                       ToolTip="Add an entry to this category"
+                                                       Click="OnAddEntryInlineClick" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <Button Content="Enable all" Click="OnEnableCategoryClick" />
+                                            <Button Content="Disable all" Margin="6,0,0,0" Click="OnDisableCategoryClick" />
+                                            <Button x:Name="RenameCategoryButton"
+                                                    Content="Rename" Margin="6,0,0,0" Click="OnRenameCategoryClick" />
+                                            <Button x:Name="DeleteCategoryButton"
+                                                    Content="Delete" Margin="6,0,0,0" Click="OnDeleteCategoryClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Entries in this category. -->
+                                <ItemsControl ItemsSource="{Binding Entries}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border x:Name="Row"
+                                                    Padding="6,4"
+                                                    Margin="0,1"
+                                                    CornerRadius="6"
+                                                    Background="Transparent"
+                                                    AllowDrop="True"
+                                                    PreviewMouseLeftButtonDown="OnRowMouseDown"
+                                                    PreviewMouseMove="OnRowMouseMove"
+                                                    DragOver="OnEntryDragOver"
+                                                    Drop="OnRowDrop">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="150" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <CheckBox Grid.Column="0"
+                                                              Margin="0,0,10,0"
+                                                              VerticalAlignment="Center"
+                                                              ToolTip="Select for a bulk action"
+                                                              Checked="OnEntrySelected"
+                                                              Unchecked="OnEntryDeselected" />
+
+                                                    <ui:ToggleSwitch Grid.Column="1"
+                                                                     Margin="0,0,14,0"
+                                                                     VerticalAlignment="Center"
+                                                                     ToolTip="Enable or disable this entry"
+                                                                     IsChecked="{Binding IsActive, Mode=OneWay}"
+                                                                     Click="OnRowToggle" />
+
+                                                    <TextBox Grid.Column="2"
+                                                             x:Name="IpBox"
+                                                             Style="{StaticResource InlineEditTextBox}"
+                                                             Text="{Binding IpAddress, Mode=OneWay}"
+                                                             Tag="IpAddress"
+                                                             ToolTip="Click to edit the IP address"
+                                                             FontFamily="Consolas"
+                                                             VerticalAlignment="Center"
+                                                             KeyDown="OnInlineEditKeyDown"
+                                                             LostKeyboardFocus="OnInlineEditLostFocus" />
+
+                                                    <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="0,0,12,0">
+                                                        <TextBox x:Name="Host"
+                                                                 Style="{StaticResource InlineEditTextBox}"
+                                                                 Text="{Binding Hostname, Mode=OneWay}"
+                                                                 Tag="Hostname"
+                                                                 ToolTip="Click to edit the hostname"
+                                                                 KeyDown="OnInlineEditKeyDown"
+                                                                 LostKeyboardFocus="OnInlineEditLostFocus" />
+                                                        <Grid>
+                                                            <!-- Placeholder shown only while hovering an entry that has no description yet,
+                                                                 so a description can be added in place without cluttering calm rows. -->
+                                                            <TextBlock Text="Add a description"
+                                                                       FontSize="12"
+                                                                       Margin="4,1"
+                                                                       VerticalAlignment="Center"
+                                                                       IsHitTestVisible="False"
+                                                                       Foreground="{DynamicResource TextFillColorDisabledBrush}">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                        <Style.Triggers>
+                                                                            <MultiDataTrigger>
+                                                                                <MultiDataTrigger.Conditions>
+                                                                                    <Condition Binding="{Binding Text, ElementName=Description}" Value="" />
+                                                                                    <Condition Binding="{Binding IsMouseOver, ElementName=Row}" Value="True" />
+                                                                                </MultiDataTrigger.Conditions>
+                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                            </MultiDataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <TextBox x:Name="Description"
+                                                                     Style="{StaticResource InlineEditTextBox}"
+                                                                     Text="{Binding Comment, Mode=OneWay}"
+                                                                     Tag="Comment"
+                                                                     ToolTip="Click to edit the description"
+                                                                     FontSize="12"
+                                                                     Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                     KeyDown="OnInlineEditKeyDown"
+                                                                     LostKeyboardFocus="OnInlineEditLostFocus" />
+                                                        </Grid>
+                                                    </StackPanel>
+
+                                                    <!-- Always-available per-row delete: a single click stages this entry's
+                                                         removal through the confirmed MainViewModel.DeleteEntry path, so the
+                                                         pending deletion shows up in the list like any other change. Editing is
+                                                         done inline in the fields above and moving is done by dragging the row,
+                                                         so those hover buttons are gone; only delete needs its own control. -->
+                                                    <ui:Button Grid.Column="4"
+                                                               VerticalAlignment="Center"
+                                                               Appearance="Subtle"
+                                                               Icon="{ui:SymbolIcon Delete24}"
+                                                               ToolTip="Delete this entry"
+                                                               Click="OnDeleteEntryClick" />
+                                                </Grid>
+                                            </Border>
+
+                                            <DataTemplate.Triggers>
+                                                <!-- Disabled: dimmed row and struck-through hostname. -->
+                                                <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                                    <Setter TargetName="Row" Property="Opacity" Value="0.55" />
+                                                    <Setter TargetName="Host" Property="TextDecorations" Value="Strikethrough" />
+                                                </DataTrigger>
+                                                <!-- Highlight the row on hover. -->
+                                                <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Row" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                                </Trigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- Inline "new entry" draft row: shown at the bottom of this category only while the
+                                     user is adding an entry to it (the plus button in this header opened it). The user
+                                     types the IP address, hostname and optional description directly and commits with
+                                     Enter, the check button, or by clicking away; Escape (or the cross) cancels. It
+                                     stages through the same validated MainViewModel.NewEntry / SaveNewEntry path, so an
+                                     empty row stages nothing and a valid one appears as a pending add. -->
+                                <Border x:Name="AddRow"
+                                        Padding="6,4"
+                                        Margin="0,1"
+                                        CornerRadius="6"
+                                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        KeyDown="OnAddRowKeyDown"
+                                        LostKeyboardFocus="OnAddRowLostFocus"
+                                        IsVisibleChanged="OnAddRowVisibleChanged">
+                                    <Border.Visibility>
+                                        <MultiBinding Converter="{StaticResource AddEntryRowVisibility}">
+                                            <Binding Path="DataContext.IsAddingEntry"
+                                                     RelativeSource="{RelativeSource AncestorType={x:Type ui:FluentWindow}}" />
+                                            <Binding Path="DataContext.AddingEntryCategory"
+                                                     RelativeSource="{RelativeSource AncestorType={x:Type ui:FluentWindow}}" />
+                                            <Binding Path="Name" />
+                                        </MultiBinding>
+                                    </Border.Visibility>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="150" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <ui:TextBox x:Name="AddIpBox"
+                                                    Grid.Column="0"
+                                                    FontFamily="Consolas"
+                                                    VerticalAlignment="Center"
+                                                    PlaceholderText="IP address"
+                                                    Text="{Binding DataContext.NewEntry.IpAddress, RelativeSource={RelativeSource AncestorType={x:Type ui:FluentWindow}}, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,8,0">
+                                            <ui:TextBox PlaceholderText="Hostname"
+                                                        Text="{Binding DataContext.NewEntry.Hostname, RelativeSource={RelativeSource AncestorType={x:Type ui:FluentWindow}}, UpdateSourceTrigger=PropertyChanged}" />
+                                            <ui:TextBox Margin="0,4,0,0"
+                                                        FontSize="12"
+                                                        PlaceholderText="Description (optional)"
+                                                        Text="{Binding DataContext.NewEntry.Comment, RelativeSource={RelativeSource AncestorType={x:Type ui:FluentWindow}}, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <ui:Button Appearance="Primary"
+                                                       Icon="{ui:SymbolIcon Checkmark24}"
+                                                       ToolTip="Add this entry"
+                                                       Click="OnAddRowConfirmClick" />
+                                            <ui:Button Margin="6,0,0,0"
+                                                       Appearance="Subtle"
+                                                       Icon="{ui:SymbolIcon Dismiss24}"
+                                                       ToolTip="Cancel"
+                                                       Click="OnAddRowCancelClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
                             </StackPanel>
-                        </StackPanel>
-                    </ui:Card>
 
-                    <ui:Card Margin="0,12,0,0">
-                        <StackPanel>
-                            <TextBlock Text="Save the current setup as a profile" FontWeight="SemiBold" Margin="0,0,0,6" />
-                            <StackPanel Orientation="Horizontal">
-                                <ui:TextBox x:Name="ProfileNameBox"
-                                            Width="240"
-                                            PlaceholderText="Profile name"
-                                            ToolTip="Name to save the currently enabled categories under" />
-                                <Button Content="Save profile" Margin="8,0,0,0" Click="OnSaveProfileClick" />
-                            </StackPanel>
-                        </StackPanel>
-                    </ui:Card>
+                            <DataTemplate.Triggers>
+                                <!-- The pinned "No category" group cannot be renamed or deleted. -->
+                                <DataTrigger Binding="{Binding IsUncategorized}" Value="True">
+                                    <Setter TargetName="RenameCategoryButton" Property="Visibility" Value="Collapsed" />
+                                    <Setter TargetName="DeleteCategoryButton" Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
+                <!-- Placeholder "new category" affordance, styled to read like a real, empty
+                     category header rather than a plain form: type a name where a category title
+                     would be and click the plus to create that category. It stages through the same
+                     validated MainViewModel.CreateCategory path (a CreateCategoryChange pending
+                     change), after which the new, empty category appears in the list above and the
+                     input clears for the next one. A blank or whitespace-only name creates nothing. -->
+                <StackPanel Margin="0,0,0,18">
+                    <Border BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="2,0,2,6"
+                            Margin="0,0,0,6"
+                            Background="Transparent">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:TextBox x:Name="NewCategoryBox"
+                                        Width="300"
+                                        FontSize="16"
+                                        FontWeight="SemiBold"
+                                        VerticalAlignment="Center"
+                                        PlaceholderText="New category"
+                                        ToolTip="Type a name and click the plus to create a category"
+                                        KeyDown="OnNewCategoryKeyDown" />
+                            <!-- Creates the category named in the box (mirrors the per-category add-entry plus). -->
+                            <ui:Button x:Name="CreateCategoryButton"
+                                       Margin="6,0,0,0"
+                                       Padding="6,2"
+                                       VerticalAlignment="Center"
+                                       Appearance="Subtle"
+                                       Icon="{ui:SymbolIcon Add24}"
+                                       ToolTip="Create this category"
+                                       Click="OnCreateCategoryClick" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-            </TabItem>
-
-            <!-- ================= SUBSCRIPTIONS ================= -->
-            <TabItem Header="Subscriptions">
-                <StackPanel Margin="0,16,0,0" MaxWidth="640" HorizontalAlignment="Left">
-                    <TextBlock Text="Remote subscriptions" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,4" />
-                    <TextBlock TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               Text="Subscribe to a remote hosts list (e.g. an ad-block list). Its entries are fetched into their own category and can be refreshed on demand." />
-
-                    <ui:Card Margin="0,12,0,0">
-                        <StackPanel>
-                            <TextBlock Text="Add or refresh a subscription" FontWeight="SemiBold" Margin="0,0,0,6" />
-                            <StackPanel Orientation="Horizontal">
-                                <ui:TextBox x:Name="SubscriptionUrlBox"
-                                            Width="300"
-                                            PlaceholderText="https://example.com/hosts"
-                                            ToolTip="The remote hosts list to subscribe to or refresh" />
-                                <ui:TextBox x:Name="SubscriptionCategoryBox"
-                                            Width="160"
-                                            Margin="8,0,0,0"
-                                            PlaceholderText="Category"
-                                            ToolTip="The category the subscription's entries live in" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                <ui:Button Content="Subscribe" Appearance="Primary" Click="OnSubscribeClick" />
-                                <ui:Button Content="Refresh" Margin="8,0,0,0" Icon="{ui:SymbolIcon ArrowSync24}" Click="OnRefreshSubscriptionClick" />
-                                <Button Content="Refresh all" Margin="8,0,0,0" Click="OnRefreshAllSubscriptionsClick" />
-                            </StackPanel>
-                        </StackPanel>
-                    </ui:Card>
-
-                    <ItemsControl ItemsSource="{Binding SubscriptionRefreshResults}" Margin="0,12,0,0">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
                 </StackPanel>
-            </TabItem>
+            </ScrollViewer>
 
-            <!-- ================= SETTINGS ================= -->
-            <TabItem Header="Settings">
-                <StackPanel Margin="0,16,0,0" MaxWidth="640" HorizontalAlignment="Left">
-                    <TextBlock Text="Settings" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8" />
-
-                    <ui:Card>
-                        <ui:ToggleSwitch IsChecked="{Binding FlushDnsAfterSaving}"
-                                         Content="Flush the DNS cache after saving"
-                                         ToolTip="After a successful save that wrote changes, flush the system DNS cache so lookups pick up the change immediately" />
-                    </ui:Card>
-
-                    <TextBlock Text="Import / export" FontSize="16" FontWeight="SemiBold" Margin="0,20,0,4" />
-                    <TextBlock TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               Text="Import entries from another hosts file into a category, or export a single category or the whole configuration as a standalone hosts file." />
-                    <ui:Card Margin="0,12,0,0">
-                        <StackPanel>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Category:" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <ComboBox x:Name="TransferCategoryBox"
-                                          Width="220"
-                                          ItemsSource="{Binding Groups}"
-                                          DisplayMemberPath="DisplayName"
-                                          ToolTip="The category to import into or to export" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                <ui:Button Content="Import into…" Icon="{ui:SymbolIcon ArrowImport24}" Click="OnImportClick" />
-                                <ui:Button Content="Export category…" Margin="8,0,0,0" Icon="{ui:SymbolIcon ArrowExport24}" Click="OnExportCategoryClick" />
-                                <Button Content="Export all…" Margin="8,0,0,0" Click="OnExportConfigurationClick" />
-                            </StackPanel>
-                        </StackPanel>
-                    </ui:Card>
-                </StackPanel>
-            </TabItem>
-
-        </TabControl>
+            <!-- Pending-changes bar: docked beneath the list, shown only while changes are staged. -->
+            <ui:Card Grid.Row="5"
+                     Margin="0,12,0,0"
+                     Visibility="{Binding HasPendingChanges, Converter={StaticResource BoolToVisibility}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <ui:SymbolIcon Symbol="Edit24" Margin="0,0,10,0" />
+                        <TextBlock VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   Text="{Binding PendingChangeCount, StringFormat='{}{0} unsaved change(s)'}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Content="Preview"
+                                IsEnabled="{Binding HasPendingChanges}"
+                                Click="OnPreviewPendingChangesClick" />
+                        <Button Content="Discard"
+                                Margin="8,0,0,0"
+                                Command="{Binding DiscardCommand}" />
+                        <ui:Button Content="Apply"
+                                   Appearance="Primary"
+                                   Margin="8,0,0,0"
+                                   Command="{Binding ApplyCommand}" />
+                    </StackPanel>
+                </Grid>
+            </ui:Card>
+        </Grid>
     </Grid>
     </AdornerDecorator>
 </ui:FluentWindow>

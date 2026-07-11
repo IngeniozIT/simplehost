@@ -11,8 +11,9 @@ namespace SimpleHost.Presentation;
 /// The main SimpleHost window. It binds to the <see cref="MainViewModel"/> assembled by the
 /// composition root, rendering the entries read from the resolved <c>hosts</c> file grouped by
 /// category, and lets the user manage them by clicking. Entries can be added through the form at the
-/// bottom (with the view-model's inline IP and hostname validation), edited through a modal dialog,
-/// deleted after a confirmation prompt, enabled or disabled, moved between categories (by the Move
+/// bottom (with the view-model's inline IP and hostname validation), edited in place by clicking a
+/// row's IP address, hostname or description and typing (or through a modal dialog), deleted after a
+/// confirmation prompt, enabled or disabled, moved between categories (by the Move
 /// action or by dragging a row onto a category), and reordered within a category by dragging. Whole
 /// categories can be created, renamed, deleted and enabled or disabled, and a multi-selection of
 /// entries can be enabled, disabled, deleted or moved at once. The current set of enabled categories
@@ -32,6 +33,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private readonly MainViewModel _viewModel;
     private System.Windows.Point _dragStartPoint;
     private HostEntryViewModel? _dragCandidate;
+
+    // Guards the inline-edit commit against re-entering itself: staging a real edit rebuilds the list
+    // and tears down the very row (and text box) being committed, which fires LostKeyboardFocus again.
+    private bool _suppressInlineCommit;
 
     // Live state for the in-flight drag: the floating ghost, its layer, the dimmed source row, where
     // inside that row the user grabbed, and the row currently showing an opened insertion gap.
@@ -155,6 +160,76 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             _viewModel.DeleteEntry(entry);
         }
     }
+
+    // --- Inline editing of a single entry field, directly in its row -------------------------
+
+    private void OnInlineEditKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox box)
+        {
+            return;
+        }
+
+        // Enter commits the typed value; Escape abandons it and restores what was there. Both consume
+        // the key so it does not also ring the default-button bell or bubble up as a list navigation.
+        if (e.Key == System.Windows.Input.Key.Enter)
+        {
+            e.Handled = true;
+            CommitInlineEdit(box);
+        }
+        else if (e.Key == System.Windows.Input.Key.Escape)
+        {
+            e.Handled = true;
+            RevertInlineEdit(box);
+        }
+    }
+
+    private void OnInlineEditLostFocus(object sender, RoutedEventArgs e)
+    {
+        // Leaving the field (Tab, a click elsewhere) commits it, exactly like pressing Enter.
+        if (sender is System.Windows.Controls.TextBox box)
+        {
+            CommitInlineEdit(box);
+        }
+    }
+
+    private void CommitInlineEdit(System.Windows.Controls.TextBox box)
+    {
+        if (_suppressInlineCommit || EntryOf(box) is not { } entry)
+        {
+            return;
+        }
+
+        // Staging an accepted change rebuilds the list and disposes this row synchronously — which
+        // re-enters here through the box's own LostKeyboardFocus — so hold the guard across the call.
+        _suppressInlineCommit = true;
+        try
+        {
+            if (!_viewModel.EditEntryField(entry, FieldOf(box), box.Text))
+            {
+                // Rejected as invalid: nothing was staged, so put the last good value back.
+                RevertInlineEdit(box);
+            }
+        }
+        finally
+        {
+            _suppressInlineCommit = false;
+        }
+    }
+
+    private static void RevertInlineEdit(System.Windows.Controls.TextBox box)
+        // Re-pull the entry's current value from the (one-way) binding source rather than assigning
+        // Text directly, which would clear the binding. This restores the last committed value after an
+        // Escape or a rejected edit.
+        => box.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateTarget();
+
+    private static HostEntryField FieldOf(System.Windows.Controls.TextBox box)
+        => box.Tag switch
+        {
+            "IpAddress" => HostEntryField.IpAddress,
+            "Hostname" => HostEntryField.Hostname,
+            _ => HostEntryField.Comment,
+        };
 
     private bool ConfirmDelete(HostEntryViewModel entry)
     {
@@ -727,7 +802,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         => string.Equals(left, right, StringComparison.Ordinal);
 
     private static bool IsInteractive(DependencyObject? source)
-        => FindAncestor<System.Windows.Controls.Primitives.ButtonBase>(source) is not null;
+        => FindAncestor<System.Windows.Controls.Primitives.ButtonBase>(source) is not null
+        || FindAncestor<System.Windows.Controls.Primitives.TextBoxBase>(source) is not null;
 
     private static CategoryGroupViewModel? GroupContaining(DependencyObject? source)
     {

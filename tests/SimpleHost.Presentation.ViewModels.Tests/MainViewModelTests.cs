@@ -481,6 +481,162 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public void EditEntryField_stages_an_in_place_update_for_a_changed_ip_address()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("127.0.0.1", "api.test", "note") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+
+        var accepted = viewModel.EditEntryField(entry, HostEntryField.IpAddress, "127.0.0.2");
+
+        accepted.ShouldBeTrue();
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>();
+        change.Target.ShouldBe(new HostEntry("127.0.0.1", "api.test", "note"));
+        change.Replacement.ShouldBe(new HostEntry("127.0.0.2", "api.test", "note"));
+    }
+
+    [Fact]
+    public void EditEntryField_editing_the_hostname_keeps_the_other_fields_the_status_and_the_category()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[]
+                {
+                    new HostEntry("0.0.0.0", "blocked.test", "ad", HostEntryStatus.Disabled),
+                }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+
+        var accepted = viewModel.EditEntryField(entry, HostEntryField.Hostname, "still-blocked.test");
+
+        accepted.ShouldBeTrue();
+        var change = pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>();
+        change.Replacement.ShouldBe(
+            new HostEntry("0.0.0.0", "still-blocked.test", "ad", HostEntryStatus.Disabled));
+    }
+
+    [Fact]
+    public void EditEntryField_stages_an_update_when_the_description_changes()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("127.0.0.1", "api.test", "old") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+
+        var accepted = viewModel.EditEntryField(entry, HostEntryField.Comment, "new");
+
+        accepted.ShouldBeTrue();
+        pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>()
+            .Replacement.ShouldBe(new HostEntry("127.0.0.1", "api.test", "new"));
+    }
+
+    [Fact]
+    public void EditEntryField_treats_a_blanked_description_as_no_description()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("127.0.0.1", "api.test", "old") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+
+        var accepted = viewModel.EditEntryField(entry, HostEntryField.Comment, "   ");
+
+        accepted.ShouldBeTrue();
+        pendingChanges.Changes.ShouldHaveSingleItem().ShouldBeOfType<UpdateEntryChange>()
+            .Replacement.ShouldBe(new HostEntry("127.0.0.1", "api.test", null));
+    }
+
+    [Fact]
+    public void EditEntryField_rejects_an_invalid_ip_address_and_stages_nothing()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("127.0.0.1", "api.test") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+
+        var accepted = viewModel.EditEntryField(entry, HostEntryField.IpAddress, "not-an-ip");
+
+        accepted.ShouldBeFalse();
+        pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void EditEntryField_rejects_an_invalid_hostname_and_stages_nothing()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("127.0.0.1", "api.test") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+
+        var accepted = viewModel.EditEntryField(entry, HostEntryField.Hostname, "not a hostname");
+
+        accepted.ShouldBeFalse();
+        pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void EditEntryField_stages_nothing_when_the_value_is_unchanged()
+    {
+        var pendingChanges = new PendingChangeSet();
+        var repository = new FakeHostsFileRepository
+        {
+            GroupedEntries = new[]
+            {
+                new CategoryGroup("Development", new[] { new HostEntry("127.0.0.1", "api.test", "same") }),
+            },
+        };
+        var viewModel = BuildViewModel(repository, pendingChanges);
+        viewModel.Load();
+        var entry = viewModel.Groups[0].Entries[0];
+
+        var accepted = viewModel.EditEntryField(entry, HostEntryField.Hostname, "api.test");
+
+        accepted.ShouldBeTrue();
+        pendingChanges.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
     public void DeleteEntry_records_a_delete_pending_change_when_the_view_confirms()
     {
         var pendingChanges = new PendingChangeSet();

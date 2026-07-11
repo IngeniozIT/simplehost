@@ -15,6 +15,25 @@
     <ui:FluentWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <local:CountToVisibilityConverter x:Key="CountToVisibility" />
+
+        <!-- An entry field the user edits in place: it reads as plain text until hovered or focused,
+             when a subtle Fluent border (and, while editing, a fill) reveals it is editable. -->
+        <Style x:Key="InlineEditTextBox" TargetType="TextBox">
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="3,1" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+                </Trigger>
+                <Trigger Property="IsKeyboardFocused" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+                    <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </ui:FluentWindow.Resources>
 
     <!-- The AdornerDecorator guarantees an adorner layer for the drag-reorder ghost, independently of
@@ -230,19 +249,59 @@
                                                                              IsChecked="{Binding IsActive, Mode=OneWay}"
                                                                              Click="OnRowToggle" />
 
-                                                            <TextBlock Grid.Column="2"
-                                                                       Text="{Binding IpAddress}"
-                                                                       FontFamily="Consolas"
-                                                                       VerticalAlignment="Center" />
+                                                            <TextBox Grid.Column="2"
+                                                                     x:Name="IpBox"
+                                                                     Style="{StaticResource InlineEditTextBox}"
+                                                                     Text="{Binding IpAddress, Mode=OneWay}"
+                                                                     Tag="IpAddress"
+                                                                     ToolTip="Click to edit the IP address"
+                                                                     FontFamily="Consolas"
+                                                                     VerticalAlignment="Center"
+                                                                     KeyDown="OnInlineEditKeyDown"
+                                                                     LostKeyboardFocus="OnInlineEditLostFocus" />
 
                                                             <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="0,0,12,0">
-                                                                <TextBlock x:Name="Host" Text="{Binding Hostname}" />
-                                                                <TextBlock x:Name="Description"
-                                                                           Text="{Binding Comment}"
-                                                                           ToolTip="{Binding Comment}"
-                                                                           FontSize="12"
-                                                                           TextTrimming="CharacterEllipsis"
-                                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                                <TextBox x:Name="Host"
+                                                                         Style="{StaticResource InlineEditTextBox}"
+                                                                         Text="{Binding Hostname, Mode=OneWay}"
+                                                                         Tag="Hostname"
+                                                                         ToolTip="Click to edit the hostname"
+                                                                         KeyDown="OnInlineEditKeyDown"
+                                                                         LostKeyboardFocus="OnInlineEditLostFocus" />
+                                                                <Grid>
+                                                                    <!-- Placeholder shown only while hovering an entry that has no description yet,
+                                                                         so a description can be added in place without cluttering calm rows. -->
+                                                                    <TextBlock Text="Add a description"
+                                                                               FontSize="12"
+                                                                               Margin="4,1"
+                                                                               VerticalAlignment="Center"
+                                                                               IsHitTestVisible="False"
+                                                                               Foreground="{DynamicResource TextFillColorDisabledBrush}">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                                <Style.Triggers>
+                                                                                    <MultiDataTrigger>
+                                                                                        <MultiDataTrigger.Conditions>
+                                                                                            <Condition Binding="{Binding Text, ElementName=Description}" Value="" />
+                                                                                            <Condition Binding="{Binding IsMouseOver, ElementName=Row}" Value="True" />
+                                                                                        </MultiDataTrigger.Conditions>
+                                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                                    </MultiDataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                    <TextBox x:Name="Description"
+                                                                             Style="{StaticResource InlineEditTextBox}"
+                                                                             Text="{Binding Comment, Mode=OneWay}"
+                                                                             Tag="Comment"
+                                                                             ToolTip="Click to edit the description"
+                                                                             FontSize="12"
+                                                                             Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                             KeyDown="OnInlineEditKeyDown"
+                                                                             LostKeyboardFocus="OnInlineEditLostFocus" />
+                                                                </Grid>
                                                             </StackPanel>
 
                                                             <!-- Per-entry actions, revealed on hover to keep the row calm. -->
@@ -263,10 +322,6 @@
                                                         <DataTrigger Binding="{Binding IsActive}" Value="False">
                                                             <Setter TargetName="Row" Property="Opacity" Value="0.55" />
                                                             <Setter TargetName="Host" Property="TextDecorations" Value="Strikethrough" />
-                                                        </DataTrigger>
-                                                        <!-- Hide the description line when the entry has no description. -->
-                                                        <DataTrigger Binding="{Binding Comment}" Value="{x:Null}">
-                                                            <Setter TargetName="Description" Property="Visibility" Value="Collapsed" />
                                                         </DataTrigger>
                                                         <!-- Reveal the row actions and highlight the row on hover. -->
                                                         <Trigger SourceName="Row" Property="IsMouseOver" Value="True">

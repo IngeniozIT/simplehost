@@ -702,6 +702,52 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Stages an inline, in-row edit of a single field of <paramref name="entry"/> — its IP address,
+    /// hostname or description — validated exactly as the edit form validates it
+    /// (<see cref="EntryFormViewModel"/>): an ill-formed IP address or hostname is rejected and stages
+    /// nothing. A committed change is staged through the same <see cref="EditEntry"/> path, keeping the
+    /// entry's category and active-or-disabled status; a value that leaves the field unchanged stages
+    /// nothing. Returns <c>true</c> when the new value is accepted (whether it staged a change or was an
+    /// unchanged no-op) and <c>false</c> when it is rejected as invalid, so the view can restore the
+    /// displayed value. Nothing is written to the file until the pending changes are applied.
+    /// </summary>
+    public bool EditEntryField(HostEntryViewModel entry, HostEntryField field, string? value)
+    {
+        var draft = new EntryFormViewModel
+        {
+            IpAddress = entry.IpAddress,
+            Hostname = entry.Hostname,
+            Comment = entry.Comment,
+        };
+
+        switch (field)
+        {
+            case HostEntryField.IpAddress:
+                draft.IpAddress = value ?? string.Empty;
+                break;
+            case HostEntryField.Hostname:
+                draft.Hostname = value ?? string.Empty;
+                break;
+            case HostEntryField.Comment:
+                draft.Comment = value;
+                break;
+        }
+
+        if (!draft.IsValid)
+        {
+            return false;
+        }
+
+        EditEntry(
+            entry,
+            draft.IpAddress,
+            draft.Hostname,
+            NullIfBlank(draft.Comment),
+            CurrentCategoryOf(entry));
+        return true;
+    }
+
+    /// <summary>
     /// Stages the deletion of <paramref name="entry"/> as a pending change, but only once
     /// <see cref="DeleteConfirmation"/> confirms it. When no confirmation is supplied, or the view
     /// declines, nothing is staged. Nothing is written to the file until the pending changes are
